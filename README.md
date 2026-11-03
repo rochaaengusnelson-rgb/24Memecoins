@@ -1,0 +1,99 @@
+# eventcoins
+
+Launch a **24-hour event coin on pump.fun** where:
+
+- the **event owner funds the launch** with a USD amount ($500 by default) as the coin's first buy on the bonding curve,
+- a **Switchboard SOL/USD feed** converts that $500 into the exact SOL amount at launch time,
+- a **Switchboard attendance feed** (seats filled across every venue) is the coin's oracle: it can gate the launch, it's shown live during the 24h window, and at the end it decides how much of the owner's bag gets **burned**.
+
+## Example: arena show + NYC simulcast
+
+`events/example-la-arena-nyc-broadcast.json`. An artist plays an LA arena and the show is broadcast live to 35 NYC theaters:
+
+| Venue | Locations | Seats |
+|---|---|---|
+| LA Arena (main show) | 1 | 20,000 (placeholder, set the real capacity) |
+| NYC theater simulcast | 35 | 4,000 total |
+| **Total** | | **24,000** |
+
+Flow:
+
+1. **Launch** at showtime. The owner's wallet creates the coin and buys ~$500 of it in a single transaction (`create_v2` + buy via the official `@pump-fun/pump-sdk`).
+2. **24h window.** The attendance feed reports seats filled (arena check-ins + theater check-ins). `status` shows the live fill rate.
+3. **Settle** after 24h. Read the final attendance, compute `fill = seatsFilled / 24,000`, then burn `fill × burnShareAtFullHouse` of the owner's tokens. A sold-out night burns the owner's whole bag, which shrinks supply for holders. A half-empty night burns half.
+
+> pump.fun has no "deposit into the pool" option. Liquidity on a pump.fun coin is the bonding curve, and the creator's first buy is how an owner puts money in. On pump.fun the $500 therefore goes in as a first buy. Once the curve fills, pump.fun migrates it to PumpSwap automatically.
+
+## The oracles
+
+### SOL/USD (sizing the $500)
+Set `SB_SOL_USD_FEED` to a Switchboard On-Demand SOL/USD pull feed (find one on the Switchboard explorer). Launch refuses to run if the value is older than `SB_MAX_PRICE_AGE_SEC`.
+
+### Attendance (the event oracle)
+`feeds/attendance-job.json` is a Switchboard OracleJob template. Oracles fetch your ticketing/check-in endpoint and report `seatsFilled` as one number covering all venues. Create a pull feed with that job, then put its pubkey in `oracle.attendanceFeed`.
+
+Pull feeds only update when someone pushes an update. During the event, run a crank (Switchboard's crank service, or a cron that calls `PullFeed.fetchUpdateIx`) every few minutes. The CLI refuses to act on a value older than `oracle.maxAgeSec`.
+
+The endpoint is the trust point: whoever controls it controls the oracle. Use the venue/ticketing provider's API (scans at the door, theater POS counts) rather than a number the artist's team types in.
+
+## Usage
+
+```bash
+npm install
+```
+
+```bash
+cp .env.example .env   # set RPC_URL, OWNER_KEYPAIR, SB_SOL_USD_FEED
+```
+
+```bash
+npm run quote -- events/example-la-arena-nyc-broadcast.json
+```
+
+```bash
+npm run launch -- events/example-la-arena-nyc-broadcast.json --dry-run
+```
+
+```bash
+npm run launch -- events/example-la-arena-nyc-broadcast.json
+```
+
+```bash
+npm run status -- events/example-la-arena-nyc-broadcast.json
+```
+
+```bash
+npm run settle -- events/example-la-arena-nyc-broadcast.json
+```
+
+`launch` uploads the image + metadata to pump.fun's IPFS endpoint (or pass `--uri`), checks the owner holds the seed amount plus ~0.05 SOL for rent and fees, then sends the create+buy. Launch info goes to `state/<event-id>.json`, which `status` and `settle` read.
+
+## Event config
+
+| Field | Meaning |
+|---|---|
+| `venues[]` | name, city, `locations` (e.g. 35 theaters), `seats`. Capacity = sum of seats |
+| `funding.usd` | owner's seed, default 500 |
+| `funding.slippageBps` | SOL headroom over the quote + min-token slippage on the buy |
+| `oracle.attendanceFeed` | Switchboard pull feed pubkey for seats filled |
+| `rules.windowHours` | coin window, default 24 |
+| `rules.minSeatsToLaunch` | launch gate on the attendance feed |
+| `rules.burnShareAtFullHouse` | share of the owner bag burned at 100% fill |
+
+## Layout
+
+```
+src/cli.ts                 quote / launch / status / settle
+src/event.ts               event schema (zod) + capacity
+src/math.ts                USD→lamports, fill rate, burn amount, window (unit-tested)
+src/oracle/switchboard.ts  read + staleness-check Switchboard pull feeds
+src/pumpfun/metadata.ts    pump.fun IPFS upload
+src/pumpfun/launch.ts      create_v2 + first buy, signed by owner + fresh mint
+src/settle.ts              owner bag lookup + burn (Token-2022 aware)
+feeds/attendance-job.json  Switchboard job template
+```
+
+## Notes
+
+- Settlement is a promise the owner keeps by running `settle` with their own key. To make the burn trustless, move the owner's tokens into an escrow program that reads the attendance feed on-chain and burns at the end of the window. That program is the natural next step.
+- Meme coins are speculative, and launching one tied to a real artist needs that artist's permission and should go through legal/compliance review.

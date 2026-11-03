@@ -1,0 +1,39 @@
+{
+  "name": "eventcoins",
+  "version": "1.0.0",
+  "description": "Launch 24h event coins on pump.fun, funded by event owners and driven by Switchboard oracles",
+  "scripts": {
+    "quote": "tsx src/cli.ts quote",
+    "launch": "tsx src/cli.ts launch",
+    "status": "tsx src/cli.ts status",
+    "settle": "tsx src/cli.ts settle",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rochaaengusnelson-rgb/eventcoins.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rochaaengusnelson-rgb/eventcoins/issues"
+  },
+  "homepage": "https://github.com/rochaaengusnelson-rgb/eventcoins#readme",
+  "dependencies": {
+    "@pump-fun/pump-sdk": "^4.3.1",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "@switchboard-xyz/on-demand": "^3.10.6",
+    "bn.js": "^5.2.5",
+    "dotenv": "^18.0.9",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.2.0",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

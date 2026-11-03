@@ -1,0 +1,27 @@
+{
+  "id": "artist-la-arena-nyc-2026",
+  "artist": "ARTIST NAME",
+  "title": "Live from the LA Arena — simulcast to 35 NYC theaters",
+  "description": "24-hour event coin for ARTIST NAME's LA arena show, simulcast live to 35 New York City theaters. Attendance across every seat is the oracle: the fuller the house, the more of the owner's bag gets burned at the end.",
+  "startsAt": "2026-12-12T20:00:00-08:00",
+  "coin": {
+    "name": "ARTIST LIVE 24H",
+    "symbol": "LIVE24",
+    "image": "./events/coin.png",
+    "website": "https://example.com"
+  },
+  "venues": [
+    { "name": "LA Arena (main show)", "city": "Los Angeles", "locations": 1, "seats": 20000 },
+    { "name": "NYC theater simulcast", "city": "New York", "locations": 35, "seats": 4000 }
+  ],
+  "funding": { "usd": 500, "slippageBps": 300 },
+  "oracle": {
+    "attendanceFeed": "REPLACE_WITH_SWITCHBOARD_PULL_FEED_PUBKEY",
+    "maxAgeSec": 600
+  },
+  "rules": {
+    "windowHours": 24,
+    "minSeatsToLaunch": 0,
+    "burnShareAtFullHouse": 1
+  }
+}

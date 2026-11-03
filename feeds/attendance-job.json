@@ -1,0 +1,16 @@
+{
+  "_comment": "Switchboard OracleJob for the attendance feed. Each oracle fetches the event owner's check-in endpoint and reports total seats filled (arena + all simulcast theaters). Create the feed at https://explorer.switchboardlabs.xyz (or with PullFeed.initTx) using this job, then put the feed pubkey in the event's oracle.attendanceFeed.",
+  "tasks": [
+    {
+      "httpTask": {
+        "url": "https://YOUR-TICKETING-API.example.com/events/artist-la-arena-nyc-2026/attendance"
+      }
+    },
+    {
+      "jsonParseTask": {
+        "path": "$.seatsFilled"
+      }
+    }
+  ],
+  "_expectedResponse": { "seatsFilled": 18342, "byVenue": { "la-arena": 16020, "nyc-simulcast": 2322 } }
+}
