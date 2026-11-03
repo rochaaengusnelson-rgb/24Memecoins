@@ -66,7 +66,15 @@ npm run status -- events/example-la-arena-nyc-broadcast.json
 npm run settle -- events/example-la-arena-nyc-broadcast.json
 ```
 
-`launch` uploads the image + metadata to pump.fun's IPFS endpoint (or pass `--uri`), checks the owner holds the seed amount plus ~0.05 SOL for rent and fees, then sends the create+buy. Launch info goes to `state/<event-id>.json`, which `status` and `settle` read.
+### Offline simulation
+
+```bash
+npm run sim
+```
+
+Runs the whole lifecycle (quote → launch → 24h status → settle) for two scenarios, a near sell-out and a soft night, plus the guard-rail refusals. It uses the real event config, sizing math, pump.fun SDK instruction builder, transaction signing and burn instruction. Only the chain is mocked: pump.fun's Global parameters, the Switchboard feed values on a scripted check-in timeline, the wallet and the clock. Nothing is sent.
+
+`launch` uploads the image + metadata to pump.fun's IPFS endpoint (or pass `--uri`), checks the owner holds the seed amount plus ~0.05 SOL for rent and fees, then sends the create+buy. With a real IPFS metadata URI, create+buy comes to ~1,248 bytes, over Solana's 1,232-byte limit. `launch` therefore first creates an address lookup table for that launch (one extra tx, ~0.003 SOL rent), then sends create+buy atomically at ~631 bytes. Launch info goes to `state/<event-id>.json`, which `status` and `settle` read.
 
 ## Event config
 
@@ -89,6 +97,7 @@ src/math.ts                USD→lamports, fill rate, burn amount, window (unit-
 src/oracle/switchboard.ts  read + staleness-check Switchboard pull feeds
 src/pumpfun/metadata.ts    pump.fun IPFS upload
 src/pumpfun/launch.ts      create_v2 + first buy, signed by owner + fresh mint
+src/sim/run.ts             offline lifecycle simulation (mocked chain)
 src/settle.ts              owner bag lookup + burn (Token-2022 aware)
 feeds/attendance-job.json  Switchboard job template
 ```

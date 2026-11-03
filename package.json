@@ -8,7 +8,8 @@
     "status": "tsx src/cli.ts status",
     "settle": "tsx src/cli.ts settle",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sim": "tsx src/sim/run.ts"
   },
   "repository": {
     "type": "git",
