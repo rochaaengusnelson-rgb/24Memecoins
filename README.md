@@ -85,13 +85,13 @@ Reads the live pump.fun `Global` + `FeeConfig`, builds the real create_v2 + firs
 
 Cloud environment: the `24Memecoins` Claude Code environment allows `api.mainnet-beta.solana.com`, `api.devnet.solana.com`, `pump.fun` and `crossbar.switchboard.xyz`, and runs `npm ci` at startup. Node's networking only goes through the proxy with `NODE_USE_ENV_PROXY=1`, which the npm scripts set.
 
-### ROI scenarios (price pegged 1:1 to attendance)
+### ROI scenarios (value pegged to attendance, launch at $0)
 
 ```bash
 npm run roi -- events/msg-nyc-one-night.json --sol-usd 185
 ```
 
-Models the coin price as launch price × seats occupied ÷ seats at launch, using the event's `attendanceProfile`. The crowd trades on the pump.fun curve math (live mainnet Global and fee rates, checked against the SDK) to hold that peg every minute. Owner ROI is compared across five cases: sell mid-show, sell just before the crowd leaves, a 50/50 split, hold with the burn, and hold without it. Writes `reports/<event>-roi.md`, a 5-minute timeline CSV and a summary JSON.
+The coin launches at `startsAt` with 0 seats counted. Market cap = launch market cap + `rules.pegUsdPerSeat` (default $1) × seats occupied, so the attendance value starts at $0 and moves $1 per person entering or leaving. A literal $0 price isn't possible on pump.fun: a fresh curve opens at ~$5.2k market cap and the owner's $500 seed takes it to ~$6.1k, so that level is the zero line. The crowd trades on the pump.fun curve math (live mainnet Global and fee rates, checked against the SDK) to hold that peg every minute. Owner ROI is compared across five cases: sell mid-show, sell just before the crowd leaves, a 50/50 split, hold with the burn, and hold without it. Writes `reports/<event>-roi.md`, `reports/<event>-roi-chart.html` (seats and attendance value on one time axis, owner-sale price drops, hover readout, light/dark), a 5-minute timeline CSV and a summary JSON.
 
 ### Offline simulation
 
@@ -126,6 +126,7 @@ src/pumpfun/metadata.ts    pump.fun IPFS upload
 src/pumpfun/launch.ts      create_v2 + first buy, signed by owner + fresh mint
 src/dryrun.ts              live simulateTransaction dry run (mainnet/devnet)
 src/roi.ts                 ROI scenarios with an attendance-pegged price
+src/report/chart.ts        self-contained HTML time chart for the ROI report
 src/model/curve.ts         pump.fun bonding-curve math (buy/sell/fees)
 src/sim/run.ts             offline lifecycle simulation (mocked chain)
 src/settle.ts              owner bag lookup + burn (Token-2022 aware)

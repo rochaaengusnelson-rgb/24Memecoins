@@ -2,7 +2,7 @@
   "id": "msg-nyc-one-night-2026-11-20",
   "artist": "ARTIST NAME",
   "title": "One Night Only \u2014 Madison Square Garden, NYC",
-  "description": "24-hour event coin for ARTIST NAME's one-night show at Madison Square Garden. Show 9:00 PM to 12:30 AM ET. Seats filled at MSG are the oracle: the fuller the Garden, the more of the owner's bag is burned when the 24 hours end.",
+  "description": "24-hour event coin for ARTIST NAME's one-night show at Madison Square Garden. Launches at 9:00 PM ET with 0 seats counted; every attendee in the building adds $1 of market cap, and leaving takes it back. Show runs to 12:30 AM ET; the fuller the Garden, the more of the owner's bag is burned when the 24 hours end.",
   "startsAt": "2026-11-20T21:00:00-05:00",
   "endsAt": "2026-11-21T00:30:00-05:00",
   "coin": {
@@ -29,25 +29,38 @@
   "rules": {
     "windowHours": 24,
     "minSeatsToLaunch": 0,
-    "burnShareAtFullHouse": 1
+    "burnShareAtFullHouse": 1,
+    "pegUsdPerSeat": 1
   },
   "attendanceProfile": {
-    "_note": "Seats occupied (not cumulative check-ins), minutes after startsAt. Modeled, not measured: replace with the ticketing/scan feed.",
+    "_note": "Seats occupied (people in the building), minutes after startsAt. Count starts at 0 at the 9:00 PM launch. Modeled, not measured: replace with the ticketing/scan feed.",
     "points": [
       [
         0,
-        17650
+        0
       ],
       [
-        20,
-        18500
+        15,
+        4000
       ],
       [
-        40,
-        19000
+        30,
+        9500
+      ],
+      [
+        45,
+        14000
       ],
       [
         60,
+        17000
+      ],
+      [
+        75,
+        18600
+      ],
+      [
+        90,
         19200
       ],
       [

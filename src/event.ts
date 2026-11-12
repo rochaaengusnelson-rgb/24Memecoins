@@ -52,6 +52,11 @@ export const EventConfig = z.object({
      * 1.0 = a 100% full house burns 100% of the owner's bag; 60% full burns 60%.
      */
     burnShareAtFullHouse: z.number().min(0).max(1).default(1),
+    /**
+     * Attendance peg: market cap = launch market cap + this many USD per seat occupied.
+     * The launch happens at 0 seats, so the attendance value starts at $0.
+     */
+    pegUsdPerSeat: z.number().positive().default(1),
   }),
 });
 
