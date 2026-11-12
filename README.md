@@ -66,6 +66,25 @@ npm run status -- events/example-la-arena-nyc-broadcast.json
 npm run settle -- events/example-la-arena-nyc-broadcast.json
 ```
 
+### Live dry run (no keys, no SOL)
+
+```bash
+npm run dryrun -- events/example-la-arena-nyc-broadcast.json --network mainnet --sol-usd 185 --seats 23180
+```
+
+```bash
+npm run dryrun -- events/example-la-arena-nyc-broadcast.json --network devnet --sol-usd 185 --seats 13908
+```
+
+Reads the live pump.fun `Global` + `FeeConfig`, builds the real create_v2 + first buy, and runs it through `simulateTransaction` against the real pump.fun program on mainnet or devnet. Signature checks are off, so a funded wallet (the fee payer of a recent pump.fun trade) stands in for the event owner. Nothing is signed or sent. The run reports success or failure, compute units, the instructions executed, tokens received, SOL spent and the settlement burn. Each run writes a JSON report to `state/dryrun/`.
+
+- Devnet's pump.fun curve is 100× smaller (0.3 vs 30 virtual SOL), so the dry run scales the seed to buy the same share of supply.
+- `--sol-usd` is used only when the Switchboard SOL/USD feed (`SB_SOL_USD_FEED` / `--sb-feed`) is stale. In Nov 2026 every classic SOL/USD pull feed on mainnet was weeks stale and the Switchboard crossbar was unreachable, so a real launch needs a feed you crank yourself.
+- `--seats` stands in for the attendance feed until one exists.
+- With a real-length IPFS URI the transaction is 1,248 bytes. A lookup table can only be simulated once it exists on chain, so the dry run shortens the URI to fit and reports the real size.
+
+Cloud environment: the `24Memecoins` Claude Code environment allows `api.mainnet-beta.solana.com`, `api.devnet.solana.com`, `pump.fun` and `crossbar.switchboard.xyz`, and runs `npm ci` at startup. Node's networking only goes through the proxy with `NODE_USE_ENV_PROXY=1`, which the npm scripts set.
+
 ### Offline simulation
 
 ```bash
@@ -97,6 +116,7 @@ src/math.ts                USD→lamports, fill rate, burn amount, window (unit-
 src/oracle/switchboard.ts  read + staleness-check Switchboard pull feeds
 src/pumpfun/metadata.ts    pump.fun IPFS upload
 src/pumpfun/launch.ts      create_v2 + first buy, signed by owner + fresh mint
+src/dryrun.ts              live simulateTransaction dry run (mainnet/devnet)
 src/sim/run.ts             offline lifecycle simulation (mocked chain)
 src/settle.ts              owner bag lookup + burn (Token-2022 aware)
 feeds/attendance-job.json  Switchboard job template

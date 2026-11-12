@@ -3,13 +3,14 @@
   "version": "1.0.0",
   "description": "Launch 24h event coins on pump.fun, funded by event owners and driven by Switchboard oracles",
   "scripts": {
-    "quote": "tsx src/cli.ts quote",
-    "launch": "tsx src/cli.ts launch",
-    "status": "tsx src/cli.ts status",
-    "settle": "tsx src/cli.ts settle",
+    "quote": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/cli.ts quote",
+    "launch": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/cli.ts launch",
+    "status": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/cli.ts status",
+    "settle": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/cli.ts settle",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "sim": "tsx src/sim/run.ts"
+    "sim": "tsx src/sim/run.ts",
+    "dryrun": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/dryrun.ts"
   },
   "repository": {
     "type": "git",

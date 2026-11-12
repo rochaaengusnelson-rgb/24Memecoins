@@ -36,7 +36,7 @@ const GLOBAL: Global = {
   withdrawAuthority: pk(),
   enableMigrate: true,
   poolMigrationFee: new BN(15_000_001),
-  creatorFeeBasisPoints: new BN(30),
+  creatorFeeBasisPoints: new BN(5),
   feeRecipients: Array.from({ length: 7 }, pk),
   setCreatorAuthority: pk(),
   adminSetCreatorAuthority: pk(),
@@ -145,8 +145,8 @@ async function runScenario(ev: EventConfig, label: string, scale: number, solUsd
   const built = await buildLaunchIxs({
     global: GLOBAL,
     feeConfig: null,
-    owner,
-    mint,
+    owner: owner.publicKey,
+    mint: mint.publicKey,
     name: ev.coin.name,
     symbol: ev.coin.symbol,
     // Realistic pump.fun IPFS metadata URI length
@@ -183,7 +183,7 @@ async function runScenario(ev: EventConfig, label: string, scale: number, solUsd
   const priceSol = Number(curve.vS) / Number(curve.vT); // lamports per base unit == SOL per token
   const mcapUsd = (priceSol * Number(supply)) / 1e9 * price;
   const realTokens = BigInt(GLOBAL.initialRealTokenReserves.toString());
-  line(`  owner receives (SDK quote)       ${fmt(Number(ownerTokens) / 10 ** DECIMALS)} tokens = ${pct(Number(ownerTokens) / Number(supply))} of supply (min accepted ${fmt(Number(built.minTokens) / 10 ** DECIMALS)})`);
+  line(`  owner receives (SDK quote)       ${fmt(Number(ownerTokens) / 10 ** DECIMALS)} tokens = ${pct(Number(ownerTokens) / Number(supply))} of supply for ${lamportsToSol(built.seedLamports).toFixed(4)} SOL, max spend ${lamportsToSol(lamports).toFixed(4)} SOL`);
   line(`  curve progress after seed        ${pct(Number(curve.tokensOut) / Number(realTokens))} toward graduation`);
   line(`  implied market cap               ~$${fmt(Math.round(mcapUsd))}`);
 

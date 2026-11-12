@@ -45,38 +45,45 @@ export const MAX_TX_BYTES = 1232;
 export interface BuildLaunchParams {
   global: Global;
   feeConfig: FeeConfig | null;
-  owner: Keypair;
-  mint: Keypair;
+  owner: PublicKey;
+  mint: PublicKey;
   name: string;
   symbol: string;
   uri: string;
+  /** Max SOL the owner may spend: the USD seed plus `slippageBps` headroom (see usdToLamports). */
   lamports: bigint;
   slippageBps: number;
 }
 
-/** Build the create_v2 + first-buy instructions. Pure: no network. */
+/**
+ * Build the create_v2 + first-buy instructions. Pure: no network.
+ *
+ * pump.fun's buy takes an exact token amount and a max SOL cost. The token amount is quoted for
+ * the seed itself (lamports minus the headroom); the headroom only raises the max SOL, so the
+ * owner gets the full $-seed worth of tokens and the tx still clears if fees differ slightly.
+ */
 export async function buildLaunchIxs(p: BuildLaunchParams) {
   const solAmount = new BN(p.lamports.toString());
+  const seed = (p.lamports * 10_000n) / BigInt(10_000 + p.slippageBps);
   const quoted = getBuyTokenAmountFromSolAmount({
     global: p.global,
     feeConfig: p.feeConfig,
     mintSupply: null,
     bondingCurve: null,
-    amount: solAmount,
+    amount: new BN(seed.toString()),
     quoteMint: NATIVE_MINT,
   });
-  // Ask for slightly fewer tokens than quoted so the buy still clears if fees move.
-  const minTokens = quoted.muln(10_000 - p.slippageBps).divn(10_000);
+  const tokens = quoted;
 
   const pumpIxs = await PUMP_SDK.createV2AndBuyInstructions({
     global: p.global,
-    mint: p.mint.publicKey,
+    mint: p.mint,
     name: p.name,
     symbol: p.symbol,
     uri: p.uri,
-    creator: p.owner.publicKey,
-    user: p.owner.publicKey,
-    amount: minTokens,
+    creator: p.owner,
+    user: p.owner,
+    amount: tokens,
     solAmount,
     mayhemMode: false,
   });
@@ -85,7 +92,7 @@ export async function buildLaunchIxs(p: BuildLaunchParams) {
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 200_000 }),
     ...pumpIxs,
   ];
-  return { ixs, quoted: BigInt(quoted.toString()), minTokens: BigInt(minTokens.toString()) };
+  return { ixs, quoted: BigInt(tokens.toString()), seedLamports: seed };
 }
 
 /** Compile + sign. Returns the tx and its wire size (Solana rejects > 1232 bytes). */
@@ -99,6 +106,14 @@ export function compileLaunchTx(
   const msg = new TransactionMessage({ payerKey: owner.publicKey, recentBlockhash: blockhash, instructions: ixs }).compileToV0Message(lookupTables);
   const tx = new VersionedTransaction(msg);
   tx.sign([owner, mint]);
+  return { tx, bytes: tx.serialize().length };
+}
+
+/** Compile without signing (for simulateTransaction with sigVerify: false). */
+export function compileUnsigned(ixs: TransactionInstruction[], payer: PublicKey, blockhash: string, lookupTables: AddressLookupTableAccount[] = []) {
+  const tx = new VersionedTransaction(
+    new TransactionMessage({ payerKey: payer, recentBlockhash: blockhash, instructions: ixs }).compileToV0Message(lookupTables),
+  );
   return { tx, bytes: tx.serialize().length };
 }
 
@@ -148,7 +163,7 @@ export async function launchOnPump(p: LaunchParams): Promise<LaunchResult> {
   const online = new OnlinePumpSdk(p.conn);
   const [global, feeConfig] = await Promise.all([online.fetchGlobal(), online.fetchFeeConfig()]);
   const mint = Keypair.generate();
-  const { ixs, quoted } = await buildLaunchIxs({ ...p, global, feeConfig, mint });
+  const { ixs, quoted } = await buildLaunchIxs({ ...p, owner: p.owner.publicKey, global, feeConfig, mint: mint.publicKey });
 
   let { blockhash, lastValidBlockHeight } = await p.conn.getLatestBlockhash("confirmed");
   let { tx, bytes } = compileLaunchTx(ixs, p.owner, mint, blockhash);
