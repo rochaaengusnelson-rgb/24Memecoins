@@ -1,0 +1,67 @@
+{
+  "event": "msg-nyc-one-night-2026-11-20",
+  "solUsd": 185,
+  "source": "live mainnet (2026-11-12T13:45:08.758Z)",
+  "summary": [
+    {
+      "id": "A",
+      "scenario": "Owner sells 100% mid-show (Fri 10:45 PM)",
+      "costSol": 2.7119027019999997,
+      "proceedsSol": 2.857420731,
+      "creatorFeesSol": 0.033795431,
+      "residualSol": 0,
+      "totalSol": 2.891216162,
+      "roi": 0.06612090465773668,
+      "crowdNetSol": -0.32889894,
+      "burnedTokens": "0"
+    },
+    {
+      "id": "B",
+      "scenario": "Owner sells 100% right before the crowd leaves (Sat 12:25 AM)",
+      "costSol": 2.7119027019999997,
+      "proceedsSol": 2.857420731,
+      "creatorFeesSol": 0.033795431,
+      "residualSol": 0,
+      "totalSol": 2.891216162,
+      "roi": 0.06612090465773668,
+      "crowdNetSol": -0.32889894,
+      "burnedTokens": "0"
+    },
+    {
+      "id": "C",
+      "scenario": "Owner sells 50% mid-show, 50% before the crowd leaves",
+      "costSol": 2.7119027019999997,
+      "proceedsSol": 2.984129352,
+      "creatorFeesSol": 0.034565307,
+      "residualSol": 0,
+      "totalSol": 3.018694659,
+      "roi": 0.11312793662314813,
+      "crowdNetSol": -0.458815375,
+      "burnedTokens": "0"
+    },
+    {
+      "id": "D",
+      "scenario": "Owner holds; settlement burn at peak fill (baseline rules)",
+      "costSol": 2.7119027019999997,
+      "proceedsSol": 0,
+      "creatorFeesSol": 0.008425878,
+      "residualSol": 0.044145397,
+      "totalSol": 0.052571275,
+      "roi": -0.9806146160917834,
+      "crowdNetSol": -0.03510774,
+      "burnedTokens": "86,322,198"
+    },
+    {
+      "id": "E",
+      "scenario": "Owner holds, no burn; sells at window close (reference)",
+      "costSol": 2.7119027019999997,
+      "proceedsSol": 2.635969299,
+      "creatorFeesSol": 0.016433887,
+      "residualSol": 0,
+      "totalSol": 2.652403186,
+      "roi": -0.02194013670037631,
+      "crowdNetSol": -0.03510774,
+      "burnedTokens": "0"
+    }
+  ]
+}

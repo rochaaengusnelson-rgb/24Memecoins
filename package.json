@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "sim": "tsx src/sim/run.ts",
-    "dryrun": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/dryrun.ts"
+    "dryrun": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/dryrun.ts",
+    "roi": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/roi.ts"
   },
   "repository": {
     "type": "git",

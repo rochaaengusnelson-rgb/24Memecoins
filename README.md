@@ -85,6 +85,14 @@ Reads the live pump.fun `Global` + `FeeConfig`, builds the real create_v2 + firs
 
 Cloud environment: the `24Memecoins` Claude Code environment allows `api.mainnet-beta.solana.com`, `api.devnet.solana.com`, `pump.fun` and `crossbar.switchboard.xyz`, and runs `npm ci` at startup. Node's networking only goes through the proxy with `NODE_USE_ENV_PROXY=1`, which the npm scripts set.
 
+### ROI scenarios (price pegged 1:1 to attendance)
+
+```bash
+npm run roi -- events/msg-nyc-one-night.json --sol-usd 185
+```
+
+Models the coin price as launch price × seats occupied ÷ seats at launch, using the event's `attendanceProfile`. The crowd trades on the pump.fun curve math (live mainnet Global and fee rates, checked against the SDK) to hold that peg every minute. Owner ROI is compared across five cases: sell mid-show, sell just before the crowd leaves, a 50/50 split, hold with the burn, and hold without it. Writes `reports/<event>-roi.md`, a 5-minute timeline CSV and a summary JSON.
+
 ### Offline simulation
 
 ```bash
@@ -117,6 +125,8 @@ src/oracle/switchboard.ts  read + staleness-check Switchboard pull feeds
 src/pumpfun/metadata.ts    pump.fun IPFS upload
 src/pumpfun/launch.ts      create_v2 + first buy, signed by owner + fresh mint
 src/dryrun.ts              live simulateTransaction dry run (mainnet/devnet)
+src/roi.ts                 ROI scenarios with an attendance-pegged price
+src/model/curve.ts         pump.fun bonding-curve math (buy/sell/fees)
 src/sim/run.ts             offline lifecycle simulation (mocked chain)
 src/settle.ts              owner bag lookup + burn (Token-2022 aware)
 feeds/attendance-job.json  Switchboard job template

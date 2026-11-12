@@ -27,6 +27,10 @@ export const EventConfig = z.object({
     website: z.string().optional(),
   }),
   venues: z.array(Venue).min(1),
+  /** Modeled seats occupied over time: [minutes after startsAt, seats]. Used by ROI modeling. */
+  attendanceProfile: z
+    .object({ _note: z.string().optional(), points: z.array(z.tuple([z.number(), z.number().int().min(0)])).min(2) })
+    .optional(),
   funding: z.object({
     /** USD the event owner puts in as the first buy on the bonding curve. */
     usd: z.number().positive().default(500),
