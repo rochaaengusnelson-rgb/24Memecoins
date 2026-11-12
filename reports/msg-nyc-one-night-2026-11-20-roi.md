@@ -2,7 +2,7 @@
 
 ARTIST NAME · coin live Fri 7:00 PM ET · show Fri 9:00 PM – Sat 12:30 AM ET · 19,500 seats · $500 owner seed · 24h coin window
 
-Generated 2026-11-12T13:56:50.854Z · SOL/USD **$185** (held constant) · pump.fun parameters: live mainnet (2026-11-12T13:56:50.774Z)
+Generated 2026-11-12T14:14:20.655Z · SOL/USD **$185** (held constant) · pump.fun parameters: live mainnet (2026-11-12T14:14:20.566Z)
 
 ## Launch rule: $0 at 0 attendance, +$1 per seat
 

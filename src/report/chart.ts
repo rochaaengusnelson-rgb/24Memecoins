@@ -15,43 +15,7 @@ export interface ChartInput {
   roi: Array<{ id: string; name: string; roi: number; totalUsd: number; crowdUsd: number }>;
 }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-
-function clock(startIso: string, minute: number, withDay = false) {
-  return new Date(Date.parse(startIso) + minute * 60_000).toLocaleString("en-US", {
-    timeZone: "America/New_York",
-    ...(withDay ? { weekday: "short" as const } : {}),
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-export function renderChart(d: ChartInput): string {
-  const labels = Array.from({ length: d.chartMinutes + 1 }, (_, m) => clock(d.startIso, m, true));
-  const ticks = [];
-  for (let m = 0; m <= d.chartMinutes; m += 60) ticks.push({ m, t: clock(d.startIso, m).replace(":00", "") });
-  const data = { ...d, labels, ticks };
-  const pct = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(1)}%`;
-  const money = (x: number) => `${x < 0 ? "−" : ""}$${Math.abs(x).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-  const roiRows = d.roi
-    .map((r) => `<tr><th scope="row">${r.id}</th><td>${esc(r.name)}</td><td class="num">${money(r.totalUsd)}</td><td class="num"><strong>${pct(r.roi)}</strong></td><td class="num">${money(r.crowdUsd)}</td></tr>`)
-    .join("");
-  const saleItems = d.sales
-    .filter((s) => s.m < d.chartMinutes)
-    .map((s) => `<li><b>${esc(s.tag)}</b> ${labels[s.m]} ET · ${esc(s.label.replace(/^[A-E]: /, ""))} · price drops ${pct(s.after / s.peg - 1)} (${money(s.after - s.peg)} market cap) · owner gets ${money(s.proceedsUsd)}</li>`)
-    .join("");
-  const tableRows = d.rows
-    .filter((r) => r.m % 15 === 0)
-    .map((r) => `<tr><td>${labels[r.m]}</td><td class="num">${r.seats.toLocaleString("en-US")}</td><td class="num">${money(r.peg - d.launchMcap)}</td><td class="num">${money(r.peg)}</td></tr>`)
-    .join("");
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Attendance Coin Chart</title>
-<style>
+export const BASE_CSS = `
 :root {
   color-scheme: light;
   --surface: #fcfcfb; --page: #f4f3ef; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77756f;
@@ -104,6 +68,46 @@ details summary { cursor: pointer; color: var(--text-secondary); }
 .sales { margin: 10px 0 0; padding: 0; list-style: none; color: var(--text-secondary); font-size: 12.5px; display: grid; gap: 4px; }
 .sales b { color: var(--text-primary); display: inline-block; min-width: 26px; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--surface); border: 2px solid var(--drop); display: inline-block; }
+`;
+
+export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+function clock(startIso: string, minute: number, withDay = false) {
+  return new Date(Date.parse(startIso) + minute * 60_000).toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    ...(withDay ? { weekday: "short" as const } : {}),
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function renderChart(d: ChartInput): string {
+  const labels = Array.from({ length: d.chartMinutes + 1 }, (_, m) => clock(d.startIso, m, true));
+  const ticks = [];
+  for (let m = 0; m <= d.chartMinutes; m += 60) ticks.push({ m, t: clock(d.startIso, m).replace(":00", "") });
+  const data = { ...d, labels, ticks };
+  const pct = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(1)}%`;
+  const money = (x: number) => `${x < 0 ? "−" : ""}$${Math.abs(x).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  const roiRows = d.roi
+    .map((r) => `<tr><th scope="row">${r.id}</th><td>${esc(r.name)}</td><td class="num">${money(r.totalUsd)}</td><td class="num"><strong>${pct(r.roi)}</strong></td><td class="num">${money(r.crowdUsd)}</td></tr>`)
+    .join("");
+  const saleItems = d.sales
+    .filter((s) => s.m < d.chartMinutes)
+    .map((s) => `<li><b>${esc(s.tag)}</b> ${labels[s.m]} ET · ${esc(s.label.replace(/^[A-E]: /, ""))} · price drops ${pct(s.after / s.peg - 1)} (${money(s.after - s.peg)} market cap) · owner gets ${money(s.proceedsUsd)}</li>`)
+    .join("");
+  const tableRows = d.rows
+    .filter((r) => r.m % 15 === 0)
+    .map((r) => `<tr><td>${labels[r.m]}</td><td class="num">${r.seats.toLocaleString("en-US")}</td><td class="num">${money(r.peg - d.launchMcap)}</td><td class="num">${money(r.peg)}</td></tr>`)
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attendance Coin Chart</title>
+<style>
+${BASE_CSS}
 </style>
 </head>
 <body>

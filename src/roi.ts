@@ -11,10 +11,8 @@
  */
 import "dotenv/config";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { Connection, Keypair } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 import {
-  OnlinePumpSdk,
-  computeFeesBps,
   getBuyTokenAmountFromSolAmount,
   getSellSolAmountFromTokenAmount,
   newBondingCurve,
@@ -25,8 +23,10 @@ import { NATIVE_MINT } from "@solana/spl-token";
 import BN from "bn.js";
 import { launchTime, loadEvent, totalCapacity, type EventConfig } from "./event.js";
 import { burnAmount, usdToLamports } from "./math.js";
-import { Curve, seatsAt } from "./model/curve.js";
+import { seatsAt } from "./model/curve.js";
+import { freshCurve, livePumpParams } from "./model/pump.js";
 import { renderChart } from "./report/chart.js";
+import { etClock } from "./time.js";
 
 const args = process.argv.slice(2);
 const opt = (n: string) => (args.indexOf(n) >= 0 ? args[args.indexOf(n) + 1] : undefined);
@@ -81,32 +81,6 @@ const usd = (n: number, dp = 2) =>
 const pct = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%`;
 const tok = (t: bigint) => (Number(t) / DEC).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
-export function etClock(startIso: string, minute: number) {
-  return new Date(Date.parse(startIso) + minute * 60_000).toLocaleString("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-async function liveParams(): Promise<{ global: Global; feeConfig: FeeConfig | null; source: string }> {
-  const url = process.env.MAINNET_RPC_URL ?? "https://api.mainnet-beta.solana.com";
-  const sdk = new OnlinePumpSdk(new Connection(url, "confirmed"));
-  const [global, feeConfig] = await Promise.all([sdk.fetchGlobal(), sdk.fetchFeeConfig()]);
-  return { global, feeConfig, source: `live mainnet (${new Date().toISOString()})` };
-}
-
-function feesFor(g: Global, fc: FeeConfig | null) {
-  const f = computeFeesBps({ global: g, feeConfig: fc, mintSupply: g.tokenTotalSupply, virtualQuoteReserves: g.initialVirtualSolReserves, virtualTokenReserves: g.initialVirtualTokenReserves });
-  return { protocol: BigInt(f.protocolFeeBps.toString()), creator: BigInt(f.creatorFeeBps.toString()) };
-}
-function freshCurve(g: Global, fc: FeeConfig | null) {
-  return new Curve(
-    { vS: BigInt(g.initialVirtualSolReserves.toString()), vT: BigInt(g.initialVirtualTokenReserves.toString()), realT: BigInt(g.initialRealTokenReserves.toString()) },
-    feesFor(g, fc),
-  );
-}
 
 function run(ev: EventConfig, g: Global, fc: FeeConfig | null, solUsd: number, sc: Scenario, windowMin: number, chartMinutes: number): Result {
   const points = ev.attendanceProfile!.points as Array<[number, number]>;
@@ -196,7 +170,7 @@ async function main() {
   if (!ev.attendanceProfile) throw new Error(`${path} has no attendanceProfile`);
   if (ev.attendanceProfile.points[0][1] !== 0) throw new Error("attendanceProfile must start at 0 seats at launch");
   const solUsd = Number(opt("--sol-usd") ?? 185);
-  const { global: g, feeConfig: fc, source } = await liveParams();
+  const { global: g, feeConfig: fc, source } = await livePumpParams();
   const capacity = totalCapacity(ev);
   const start = launchTime(ev); // minute 0 = coin goes live
   const minutesFromLaunch = (iso: string) => Math.round((Date.parse(iso) - Date.parse(start)) / 60_000);

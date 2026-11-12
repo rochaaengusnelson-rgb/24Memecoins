@@ -93,6 +93,19 @@ npm run roi -- events/msg-nyc-one-night.json --sol-usd 185
 
 The coin goes live at `launchAt` (before the show, e.g. doors; defaults to `startsAt`) with 0 seats counted, and its window runs from there. Market cap = launch market cap + `rules.pegUsdPerSeat` (default $1) × seats occupied, so the attendance value starts at $0 and moves $1 per person entering or leaving. A literal $0 price isn't possible on pump.fun: a fresh curve opens at ~$5.2k market cap and the owner's $500 seed takes it to ~$6.1k, so that level is the zero line. The crowd trades on the pump.fun curve math (live mainnet Global and fee rates, checked against the SDK) to hold that peg every minute. Owner ROI is compared across five cases: sell mid-show, sell just before the crowd leaves, a 50/50 split, hold with the burn, and hold without it. Writes `reports/<event>-roi.md`, `reports/<event>-roi-chart.html` (seats and attendance value on one time axis, owner-sale price drops, hover readout, light/dark), a 5-minute timeline CSV and a summary JSON.
 
+### Market scenarios (micro traders + whales, Monte Carlo)
+
+```bash
+npm run market -- events/msg-nyc-one-night.json --runs 200 --sol-usd 185 --seed 1
+```
+
+Agent-based market on the pump.fun curve math, around the event's attendance profile:
+- ~2,000 micro-trader wallets (lognormal $2–$500 trades). They buy as people arrive or when the price is below the attendance value, sell as people leave or when it's above, and take profits.
+- Four whales: doors sniper, momentum, front-runner, late FOMO. Timing and size are randomized each run.
+- An optional attendance market maker, and the owner.
+
+Five scenarios: organic, organic + market maker, owner sells mid-show, owner sells before the crowd leaves, and micro traders only. Each reports the median and 10th–90th percentile range across seeded runs for market cap, distance from the attendance value, owner ROI (with creator fees shown separately), each whale's P&L and win rate, and micro-trader P&L. Writes `reports/<event>-market.md`, `-market-chart.html` (median and percentile band against the attendance value, with one sample run's whale and owner trades) and `-market-summary.json`. Behavior parameters live in `src/model/market.ts`.
+
 ### Offline simulation
 
 ```bash
@@ -127,6 +140,10 @@ src/pumpfun/launch.ts      create_v2 + first buy, signed by owner + fresh mint
 src/dryrun.ts              live simulateTransaction dry run (mainnet/devnet)
 src/roi.ts                 ROI scenarios with an attendance-pegged price
 src/report/chart.ts        self-contained HTML time chart for the ROI report
+src/market.ts              Monte Carlo market scenarios (micro traders, whales, market maker)
+src/model/market.ts        agent-based market simulation
+src/model/pump.ts          live pump.fun params + fresh curve
+src/report/marketChart.ts  small-multiple fan charts for market scenarios
 src/model/curve.ts         pump.fun bonding-curve math (buy/sell/fees)
 src/sim/run.ts             offline lifecycle simulation (mocked chain)
 src/settle.ts              owner bag lookup + burn (Token-2022 aware)

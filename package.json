@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "sim": "tsx src/sim/run.ts",
     "dryrun": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/dryrun.ts",
-    "roi": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/roi.ts"
+    "roi": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/roi.ts",
+    "market": "NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 tsx src/market.ts"
   },
   "repository": {
     "type": "git",
