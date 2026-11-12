@@ -126,7 +126,7 @@ export interface TradeMark {
 export interface RunResult {
   path: Array<{ m: number; mcap: number; peg: number; seats: number }>;
   marks: TradeMark[];
-  owner: { cost: bigint; proceeds: bigint; burned: bigint; tokensLeft: bigint; markValue: bigint; creatorFees: bigint };
+  owner: { cost: bigint; tokens0: bigint; proceeds: bigint; burned: bigint; tokensLeft: bigint; markValue: bigint; creatorFees: bigint };
   whales: Array<{ id: string; solIn: bigint; solOut: bigint; markValue: bigint }>;
   micro: { solIn: bigint; solOut: bigint; markValue: bigint; walletsTraded: number; walletsProfitable: number; trades: number };
   keeper?: { solIn: bigint; solOut: bigint; markValue: bigint };
@@ -151,6 +151,7 @@ export function simulate(curve: Curve, p: MarketParams, seed: number): RunResult
 
   // owner seed at launch
   const owner = { tokens: curve.buyGross(p.ownerSeedLamports).tokens, proceeds: 0n };
+  const ownerTokens0 = owner.tokens;
   curve.creatorFees = 0n;
   const launchMcap = mcapOf();
   const peg = (seats: number) => launchMcap + p.perSeatUsd * seats;
@@ -182,6 +183,7 @@ export function simulate(curve: Curve, p: MarketParams, seed: number): RunResult
     }
   };
   const sell = (w: Wallet, tokens: bigint): bigint => {
+    if (graduated) return 0n; // migrated to PumpSwap: trading there isn't modeled
     const amt = tokens > w.tokens ? w.tokens : tokens;
     if (amt <= 0n) return 0n;
     const t = curve.sell(amt);
@@ -214,7 +216,7 @@ export function simulate(curve: Curve, p: MarketParams, seed: number): RunResult
     const pegNow = peg(seats);
 
     // --- owner ---
-    if (p.owner.kind === "sell" && p.owner.sellMinute === m && owner.tokens > 0n) {
+    if (p.owner.kind === "sell" && p.owner.sellMinute === m && owner.tokens > 0n && !graduated) {
       const t = curve.sell(owner.tokens);
       owner.tokens = 0n;
       owner.proceeds += t.solNet;
@@ -307,10 +309,20 @@ export function simulate(curve: Curve, p: MarketParams, seed: number): RunResult
     owner.tokens -= burned;
   }
 
+  // Leftover tokens: value them together at what selling ALL of them into the curve returns,
+  // split pro rata. This conserves SOL (no paper gains the curve couldn't pay out).
+  const leftover =
+    owner.tokens +
+    micro.reduce((a, w) => a + w.tokens, 0n) +
+    whales.reduce((a, w) => a + w.wallet.tokens, 0n) +
+    (keeper ? keeper.wallet.tokens : 0n);
+  const liquidation = leftover > 0n ? curve.quoteSell(leftover) : 0n;
+  const liqValue = (tokens: bigint) => (leftover > 0n ? (liquidation * tokens) / leftover : 0n);
+
   const microAgg = micro.reduce(
     (a, w) => {
       if (w.solIn === 0n) return a;
-      const v = markValue(w.tokens);
+      const v = liqValue(w.tokens);
       a.solIn += w.solIn;
       a.solOut += w.solOut;
       a.markValue += v;
@@ -324,10 +336,10 @@ export function simulate(curve: Curve, p: MarketParams, seed: number): RunResult
   return {
     path,
     marks,
-    owner: { cost: p.ownerSeedLamports, proceeds: owner.proceeds, burned, tokensLeft: owner.tokens, markValue: markValue(owner.tokens), creatorFees: curve.creatorFees },
-    whales: whales.map((w) => ({ id: w.id, solIn: w.wallet.solIn, solOut: w.wallet.solOut, markValue: markValue(w.wallet.tokens) })),
+    owner: { cost: p.ownerSeedLamports, tokens0: ownerTokens0, proceeds: owner.proceeds, burned, tokensLeft: owner.tokens, markValue: liqValue(owner.tokens), creatorFees: curve.creatorFees },
+    whales: whales.map((w) => ({ id: w.id, solIn: w.wallet.solIn, solOut: w.wallet.solOut, markValue: liqValue(w.wallet.tokens) })),
     micro: microAgg,
-    keeper: keeper ? { solIn: keeper.wallet.solIn, solOut: keeper.wallet.solOut, markValue: markValue(keeper.wallet.tokens) } : undefined,
+    keeper: keeper ? { solIn: keeper.wallet.solIn, solOut: keeper.wallet.solOut, markValue: liqValue(keeper.wallet.tokens) } : undefined,
     peakMcap,
     closeMcap: mcapOf(),
     launchMcap,

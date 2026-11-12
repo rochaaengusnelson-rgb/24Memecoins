@@ -106,6 +106,14 @@ Agent-based market on the pump.fun curve math, around the event's attendance pro
 
 Five scenarios: organic, organic + market maker, owner sells mid-show, owner sells before the crowd leaves, and micro traders only. Each reports the median and 10th–90th percentile range across seeded runs for market cap, distance from the attendance value, owner ROI (with creator fees shown separately), each whale's P&L and win rate, and micro-trader P&L. Writes `reports/<event>-market.md`, `-market-chart.html` (median and percentile band against the attendance value, with one sample run's whale and owner trades) and `-market-summary.json`. Behavior parameters live in `src/model/market.ts`.
 
+Owner seed sweep: the same scenarios with the same random draws at several seed amounts, so only the seed differs:
+
+```bash
+npm run market -- events/msg-nyc-one-night.json --runs 200 --sol-usd 185 --seeds-usd 500,1000,3000,5000
+```
+
+This writes `reports/<event>-seed-sweep.md`, `-seed-sweep-chart.html` (owner ROI by seed for each scenario, plus a market cap band per seed) and `-seed-sweep-summary.json`. Pass `--seed-usd 3000` for a single report at one amount. Tokens still held at window close are valued together at what selling all of them into the curve would return, split pro rata, so P&L sums to zero across everyone except fees. Trading freezes if the curve fills (graduates to PumpSwap), and the report counts those runs.
+
 ### Offline simulation
 
 ```bash
@@ -141,6 +149,7 @@ src/dryrun.ts              live simulateTransaction dry run (mainnet/devnet)
 src/roi.ts                 ROI scenarios with an attendance-pegged price
 src/report/chart.ts        self-contained HTML time chart for the ROI report
 src/market.ts              Monte Carlo market scenarios (micro traders, whales, market maker)
+src/seedSweep.ts           owner seed sweep report + chart
 src/model/market.ts        agent-based market simulation
 src/model/pump.ts          live pump.fun params + fresh curve
 src/report/marketChart.ts  small-multiple fan charts for market scenarios

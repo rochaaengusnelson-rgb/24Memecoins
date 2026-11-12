@@ -3,6 +3,8 @@
  * trading the event coin on the pump.fun curve, around the event's attendance profile.
  *
  *   npm run market -- events/msg-nyc-one-night.json --runs 200 --sol-usd 185 --seed 1
+ *   npm run market -- events/msg-nyc-one-night.json --seeds-usd 500,1000,3000,5000   (owner seed sweep)
+ *   npm run market -- events/msg-nyc-one-night.json --seed-usd 3000                  (one seed amount)
  */
 import "dotenv/config";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -12,21 +14,11 @@ import { DEFAULT_MICRO, DEFAULT_WHALES, simulate, type MarketParams, type RunRes
 import { freshCurve, livePumpParams } from "./model/pump.js";
 import { etClock } from "./time.js";
 import { renderMarketChart } from "./report/marketChart.js";
+import { writeSeedSweep } from "./seedSweep.js";
+import { RENT_SOL, band, pct, q, usd } from "./stats.js";
 
 const args = process.argv.slice(2);
 const opt = (n: string) => (args.indexOf(n) >= 0 ? args[args.indexOf(n) + 1] : undefined);
-const RENT_SOL = 0.0092;
-
-const q = (xs: number[], p: number) => {
-  const s = [...xs].sort((a, b) => a - b);
-  const i = (s.length - 1) * p;
-  const lo = Math.floor(i);
-  return s[lo] + (s[Math.ceil(i)] - s[lo]) * (i - lo);
-};
-const usd = (n: number) => `${n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-const pct = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(1)}%`;
-const band = (xs: number[], f: (n: number) => string) => `${f(q(xs, 0.5))} <sub>(${f(q(xs, 0.1))} to ${f(q(xs, 0.9))})</sub>`;
-
 interface Scenario {
   id: string;
   name: string;
@@ -52,70 +44,84 @@ async function main() {
   const chartMinutes = Math.ceil((showEnd + 90) / 60) * 60;
   const points = ev.attendanceProfile.points as Array<[number, number]>;
   const capacity = totalCapacity(ev);
-  const seedLamports = usdToLamports(ev.funding.usd, solUsd, 0);
+  /** Runs every scenario for one owner seed amount (same random seeds for every amount). */
+  const computeMetrics = (seedUsd: number) => {
+    const seedLamports = usdToLamports(seedUsd, solUsd, 0);
 
-  const base: MarketParams = {
-    solUsd,
-    supply: Number(g.tokenTotalSupply.toString()),
-    capacity,
-    points,
-    showStart,
-    showEnd,
-    windowMin: Math.round(ev.rules.windowHours * 60),
-    perSeatUsd: ev.rules.pegUsdPerSeat,
-    ownerSeedLamports: seedLamports,
-    burnShareAtFullHouse: ev.rules.burnShareAtFullHouse,
-    micro: DEFAULT_MICRO,
-    whales: DEFAULT_WHALES,
-    owner: { kind: "hold-burn" },
+    const base: MarketParams = {
+      solUsd,
+      supply: Number(g.tokenTotalSupply.toString()),
+      capacity,
+      points,
+      showStart,
+      showEnd,
+      windowMin: Math.round(ev.rules.windowHours * 60),
+      perSeatUsd: ev.rules.pegUsdPerSeat,
+      ownerSeedLamports: seedLamports,
+      burnShareAtFullHouse: ev.rules.burnShareAtFullHouse,
+      micro: DEFAULT_MICRO,
+      whales: DEFAULT_WHALES,
+      owner: { kind: "hold-burn" },
+    };
+    const keeper = { inventoryUsd: 1500, bandPct: 0.05, maxUsdPerMin: 400, budgetUsd: 4000 };
+    const scenarios: Scenario[] = [
+      { id: "S1", short: "Organic market", name: "Organic market: micro traders + 4 whales, owner holds (burn at settlement)", build: (b) => b },
+      { id: "S2", short: "Organic + attendance market maker", name: `Same, plus an attendance market maker ($${keeper.budgetUsd.toLocaleString()} budget incl. $${keeper.inventoryUsd.toLocaleString()} inventory bought at launch, ±${keeper.bandPct * 100}% band, ≤$${keeper.maxUsdPerMin}/min)`, build: (b) => ({ ...b, pegKeeper: keeper }) },
+      { id: "S3", short: "Owner sells mid-show", name: `Organic market, owner sells 100% mid-show (${etClock(launch, mid)})`, build: (b) => ({ ...b, owner: { kind: "sell", sellMinute: mid } }) },
+      { id: "S4", short: "Owner sells before crowd leaves", name: `Organic market, owner sells 100% right before the crowd leaves (${etClock(launch, beforeLeave)})`, build: (b) => ({ ...b, owner: { kind: "sell", sellMinute: beforeLeave } }) },
+      { id: "S5", short: "Micro traders only", name: "Micro traders only, no whales, owner holds (baseline)", build: (b) => ({ ...b, whales: [] }) },
+    ];
+
+    const toUsd = (l: bigint) => (Number(l) / 1e9) * solUsd;
+    const results = scenarios.map((sc) => {
+      const params = sc.build(base);
+      const rs: RunResult[] = [];
+      for (let i = 0; i < runs; i++) rs.push(simulate(freshCurve(g, fc), params, seed0 * 1_000_003 + i));
+      return { sc, params, rs };
+    });
+
+    // ---- metrics ----
+    const costUsd = toUsd(seedLamports) + RENT_SOL * solUsd;
+    const metrics = results.map(({ sc, rs }) => {
+      const ownerRoi = rs.map((r) => (toUsd(r.owner.proceeds + r.owner.creatorFees + r.owner.markValue)) / costUsd - 1);
+      const ownerFees = rs.map((r) => toUsd(r.owner.creatorFees));
+      const whale = (DEFAULT_WHALES.map((w) => w.id)).map((id) => {
+        const pnl = rs.map((r) => r.whales.find((x) => x.id === id)).filter(Boolean).map((x) => toUsd(x!.solOut + x!.markValue - x!.solIn));
+        return { id, pnl, winRate: pnl.length ? pnl.filter((x) => x > 0).length / pnl.length : NaN };
+      });
+      const microPnl = rs.map((r) => toUsd(r.micro.solOut + r.micro.markValue - r.micro.solIn));
+      const microWin = rs.map((r) => r.micro.walletsProfitable / Math.max(1, r.micro.walletsTraded));
+      const microWallets = rs.map((r) => r.micro.walletsTraded);
+      const microTrades = rs.map((r) => r.micro.trades);
+      const keeperPnl = rs[0].keeper ? rs.map((r) => toUsd(r.keeper!.solOut + r.keeper!.markValue - r.keeper!.solIn)) : undefined;
+      const peak = rs.map((r) => r.peakMcap);
+      const close = rs.map((r) => r.closeMcap);
+      const track = rs.map((r) => r.trackingErr);
+      const grads = rs.filter((r) => r.graduated).length;
+      // representative run: the one whose peak market cap is closest to the median
+      const medPeak = q(peak, 0.5);
+      const rep = rs.reduce((a, r) => (Math.abs(r.peakMcap - medPeak) < Math.abs(a.peakMcap - medPeak) ? r : a), rs[0]);
+      // per-time percentiles of market cap
+      const steps = rs[0].path.length;
+      const fan = Array.from({ length: steps }, (_, i) => {
+        const xs = rs.map((r) => r.path[i].mcap);
+        const p0 = rs[0].path[i];
+        return { m: p0.m, seats: p0.seats, peg: p0.peg, p10: q(xs, 0.1), p50: q(xs, 0.5), p90: q(xs, 0.9) };
+      });
+      return { sc, ownerRoi, ownerFees, whale, microPnl, microWin, microWallets, microTrades, keeperPnl, peak, close, track, grads, rep, fan };
+    });
+    return { seedUsd, seedLamports, costUsd, results, metrics };
   };
-  const keeper = { inventoryUsd: 1500, bandPct: 0.05, maxUsdPerMin: 400, budgetUsd: 4000 };
-  const scenarios: Scenario[] = [
-    { id: "S1", short: "Organic market", name: "Organic market: micro traders + 4 whales, owner holds (burn at settlement)", build: (b) => b },
-    { id: "S2", short: "Organic + attendance market maker", name: `Same, plus an attendance market maker ($${keeper.budgetUsd.toLocaleString()} budget incl. $${keeper.inventoryUsd.toLocaleString()} inventory bought at launch, ±${keeper.bandPct * 100}% band, ≤$${keeper.maxUsdPerMin}/min)`, build: (b) => ({ ...b, pegKeeper: keeper }) },
-    { id: "S3", short: "Owner sells mid-show", name: `Organic market, owner sells 100% mid-show (${etClock(launch, mid)})`, build: (b) => ({ ...b, owner: { kind: "sell", sellMinute: mid } }) },
-    { id: "S4", short: "Owner sells before crowd leaves", name: `Organic market, owner sells 100% right before the crowd leaves (${etClock(launch, beforeLeave)})`, build: (b) => ({ ...b, owner: { kind: "sell", sellMinute: beforeLeave } }) },
-    { id: "S5", short: "Micro traders only", name: "Micro traders only, no whales, owner holds (baseline)", build: (b) => ({ ...b, whales: [] }) },
-  ];
 
-  const toUsd = (l: bigint) => (Number(l) / 1e9) * solUsd;
-  const results = scenarios.map((sc) => {
-    const params = sc.build(base);
-    const rs: RunResult[] = [];
-    for (let i = 0; i < runs; i++) rs.push(simulate(freshCurve(g, fc), params, seed0 * 1_000_003 + i));
-    return { sc, params, rs };
-  });
-
-  // ---- metrics ----
-  const costUsd = toUsd(seedLamports) + RENT_SOL * solUsd;
-  const metrics = results.map(({ sc, rs }) => {
-    const ownerRoi = rs.map((r) => (toUsd(r.owner.proceeds + r.owner.creatorFees + r.owner.markValue)) / costUsd - 1);
-    const ownerFees = rs.map((r) => toUsd(r.owner.creatorFees));
-    const whale = (DEFAULT_WHALES.map((w) => w.id)).map((id) => {
-      const pnl = rs.map((r) => r.whales.find((x) => x.id === id)).filter(Boolean).map((x) => toUsd(x!.solOut + x!.markValue - x!.solIn));
-      return { id, pnl, winRate: pnl.length ? pnl.filter((x) => x > 0).length / pnl.length : NaN };
-    });
-    const microPnl = rs.map((r) => toUsd(r.micro.solOut + r.micro.markValue - r.micro.solIn));
-    const microWin = rs.map((r) => r.micro.walletsProfitable / Math.max(1, r.micro.walletsTraded));
-    const microWallets = rs.map((r) => r.micro.walletsTraded);
-    const microTrades = rs.map((r) => r.micro.trades);
-    const keeperPnl = rs[0].keeper ? rs.map((r) => toUsd(r.keeper!.solOut + r.keeper!.markValue - r.keeper!.solIn)) : undefined;
-    const peak = rs.map((r) => r.peakMcap);
-    const close = rs.map((r) => r.closeMcap);
-    const track = rs.map((r) => r.trackingErr);
-    const grads = rs.filter((r) => r.graduated).length;
-    // representative run: the one whose peak market cap is closest to the median
-    const medPeak = q(peak, 0.5);
-    const rep = rs.reduce((a, r) => (Math.abs(r.peakMcap - medPeak) < Math.abs(a.peakMcap - medPeak) ? r : a), rs[0]);
-    // per-time percentiles of market cap
-    const steps = rs[0].path.length;
-    const fan = Array.from({ length: steps }, (_, i) => {
-      const xs = rs.map((r) => r.path[i].mcap);
-      const p0 = rs[0].path[i];
-      return { m: p0.m, seats: p0.seats, peg: p0.peg, p10: q(xs, 0.1), p50: q(xs, 0.5), p90: q(xs, 0.9) };
-    });
-    return { sc, ownerRoi, ownerFees, whale, microPnl, microWin, microWallets, microTrades, keeperPnl, peak, close, track, grads, rep, fan };
-  });
+  const sweep = opt("--seeds-usd");
+  if (sweep) {
+    const amounts = sweep.split(",").map(Number).filter((x) => x > 0);
+    writeSeedSweep({ ev, path, runs, seed0, solUsd, source, launch, showStart, showEnd, chartMinutes, capacity, points, supply: Number(g.tokenTotalSupply.toString()), realTokens: Number(g.initialRealTokenReserves.toString()), sweeps: amounts.map((amt) => computeMetrics(amt)) });
+    return;
+  }
+  const seedUsd = Number(opt("--seed-usd") ?? ev.funding.usd);
+  ev.funding.usd = seedUsd;
+  const { results, metrics } = computeMetrics(seedUsd);
 
   const launchMcap = results[0].rs[0].launchMcap;
   const peakSeats = Math.max(...points.map((p) => p[1]));
@@ -181,7 +187,7 @@ async function main() {
   w(`## Assumptions`);
   w();
   w(`- Trader behavior is a model with made-up but plausible parameters (see \`src/model/market.ts\`), not data. Change them and the numbers move; compare scenarios against each other rather than taking absolute values as forecasts.`);
-  w(`- Leftover tokens are valued at the final price minus fees (paper value). Selling them all at once would get less.`);
+  w(`- Tokens still held at window close are valued together at what selling all of them into the curve would return, split pro rata, so no paper gains are counted. Burned tokens are gone, which raises everyone else's share.`);
   w(`- No snipers or MEV in the same block as the launch, no outside news, and SOL/USD is constant.`);
   w(`- Attendance is the modeled profile in \`${path}\`.`);
   w(`- Not financial advice.`);

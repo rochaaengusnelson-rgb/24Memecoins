@@ -42,6 +42,23 @@ describe("market simulation", () => {
     expect(Number(diff)).toBeLessThan(Number(params.ownerSeedLamports) * 0.004);
   });
 
+  it("everyone's money adds up: gains + losses + fees net to zero (leftovers at liquidation value)", () => {
+    for (const seedUsd of [500, 5000]) {
+      const curve = new Curve(init, fees);
+      const r = simulate(curve, { ...params, ownerSeedLamports: BigInt(Math.round((seedUsd / 185) * 1e9)), owner: { kind: "sell", sellMinute: 225 } }, 11);
+      const pnl =
+        r.owner.proceeds + r.owner.markValue - r.owner.cost +
+        r.micro.solOut + r.micro.markValue - r.micro.solIn +
+        r.whales.reduce((a, w) => a + w.solOut + w.markValue - w.solIn, 0n);
+      const feesPaid = curve.protocolFees + curve.creatorFees;
+      const leftoverValue = r.owner.markValue + r.micro.markValue + r.whales.reduce((a, w) => a + w.markValue, 0n);
+      // Zero-sum: P&L across everyone = -(recorded fees) - (owner seed's creator fee) - (fee on the final liquidation), within rounding.
+      const residual = Number(pnl + feesPaid);
+      expect(residual).toBeLessThanOrEqual(0);
+      expect(-residual).toBeLessThan(Number(r.owner.cost) * 0.004 + Number(leftoverValue) * 0.0127 + 1e6);
+    }
+  });
+
   it("burns the owner bag only when holding", () => {
     const hold = simulate(new Curve(init, fees), params, 1);
     expect(hold.owner.burned > 0n).toBe(true);
