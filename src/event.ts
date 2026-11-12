@@ -16,6 +16,8 @@ export const EventConfig = z.object({
   description: z.string().min(1),
   /** ISO timestamp the broadcast starts; the coin's 24h window starts at launch. */
   startsAt: z.iso.datetime({ offset: true }),
+  /** ISO timestamp the show ends (headliner off stage). Optional; shown in timelines. */
+  endsAt: z.iso.datetime({ offset: true }).optional(),
   coin: z.object({
     name: z.string().min(1).max(32),
     symbol: z.string().min(1).max(10),

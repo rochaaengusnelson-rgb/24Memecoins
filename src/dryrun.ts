@@ -59,7 +59,7 @@ function tokenAmount(data: Buffer | null | undefined): bigint {
 async function main() {
   const eventPath = args.find((a) => a.endsWith(".json"));
   if (!eventPath) {
-    line("usage: npm run dryrun -- <event.json> [--network mainnet|devnet] [--sol-usd N] [--seats N] [--payer PUBKEY] [--uri URI]");
+    line("usage: npm run dryrun -- <event.json> [--network mainnet|devnet] [--sol-usd N] [--seats N] [--final-seats N] [--payer PUBKEY] [--uri URI]");
     process.exit(1);
   }
   const net = (opt("--network") ?? "mainnet") as Net;
@@ -72,6 +72,15 @@ async function main() {
 
   line(`DRY RUN on ${net.toUpperCase()}: ${ev.artist}, ${ev.title}`);
   line(`  venues: ${ev.venues.map((v) => `${v.name} ${fmt(v.seats)}`).join(" + ")} = ${fmt(capacity)} seats`);
+  const et = (ms: number) =>
+    new Date(ms).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+  const start = Date.parse(ev.startsAt);
+  const windowEnd = start + ev.rules.windowHours * 3600_000;
+  line(`  timeline (ET):`);
+  line(`    ${et(start).padEnd(28)} show starts, coin launches, ${ev.rules.windowHours}h window opens`);
+  if (ev.endsAt) line(`    ${et(Date.parse(ev.endsAt)).padEnd(28)} headliner ends (${((Date.parse(ev.endsAt) - start) / 3600_000).toFixed(1)}h show); attendance count is final`);
+  line(`    ${et(windowEnd).padEnd(28)} window closes, settle: burn by final fill`);
+  report.timeline = { launch: new Date(start).toISOString(), showEnds: ev.endsAt ?? null, windowCloses: new Date(windowEnd).toISOString() };
 
   // ---- 1. Switchboard SOL/USD ----
   line(`\n[1] Switchboard SOL/USD`);
@@ -116,6 +125,10 @@ async function main() {
   const fill = fillRate(seats, capacity);
   line(`  fill ${fmt(seats)} / ${fmt(capacity)} = ${pct(fill)}; launch gate (min ${fmt(ev.rules.minSeatsToLaunch)}) ${seats >= ev.rules.minSeatsToLaunch ? "OPEN" : "CLOSED"}`);
   report.seats = seats;
+  const finalSeats = opt("--final-seats") ? Number(opt("--final-seats")) : seats;
+  const finalFill = fillRate(finalSeats, capacity);
+  if (opt("--final-seats")) line(`  final count (after the show, --final-seats) ${fmt(finalSeats)} / ${fmt(capacity)} = ${pct(finalFill)}`);
+  report.finalSeats = finalSeats;
 
   // ---- 3. Seed sizing against the live curve ----
   line(`\n[3] Owner seed`);
@@ -189,8 +202,8 @@ async function main() {
   report.solOut = (pre - post).toString();
 
   // ---- 6. Settlement projection ----
-  const burn = burnAmount(received, fill, ev.rules.burnShareAtFullHouse);
-  line(`\n[6] Settlement after ${ev.rules.windowHours}h at ${pct(fill)} fill`);
+  const burn = burnAmount(received, finalFill, ev.rules.burnShareAtFullHouse);
+  line(`\n[6] Settlement after ${ev.rules.windowHours}h at ${pct(finalFill)} fill (${fmt(finalSeats)} seats)`);
   line(`  burn ${fmt(Number(burn) / 1e6)} of ${fmt(Number(received) / 1e6)} owner tokens; owner keeps ${fmt(Number(received - burn) / 1e6)}`);
   report.burn = burn.toString();
 
