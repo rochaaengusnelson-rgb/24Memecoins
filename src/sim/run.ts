@@ -116,7 +116,7 @@ async function runScenario(ev: EventConfig, label: string, scale: number, solUsd
   header(`SCENARIO: ${label}`);
   const capacity = totalCapacity(ev);
   const script = attendanceScript(scale);
-  const launchAt = Math.floor(Date.parse(ev.startsAt) / 1000);
+  const launchAt = Math.floor(Date.parse(ev.launchAt ?? ev.startsAt) / 1000);
   const feedAt = (hour: number): FeedPoint => {
     const t = launchAt + hour * H;
     let cur = script[0];

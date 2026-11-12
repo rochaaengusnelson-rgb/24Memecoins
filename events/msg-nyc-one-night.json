@@ -2,7 +2,8 @@
   "id": "msg-nyc-one-night-2026-11-20",
   "artist": "ARTIST NAME",
   "title": "One Night Only \u2014 Madison Square Garden, NYC",
-  "description": "24-hour event coin for ARTIST NAME's one-night show at Madison Square Garden. Launches at 9:00 PM ET with 0 seats counted; every attendee in the building adds $1 of market cap, and leaving takes it back. Show runs to 12:30 AM ET; the fuller the Garden, the more of the owner's bag is burned when the 24 hours end.",
+  "description": "24-hour event coin for ARTIST NAME's one-night show at Madison Square Garden. The coin goes live at 7:00 PM ET when doors open, before the 9:00 PM show, with 0 seats counted; every attendee in the building adds $1 of market cap, and leaving takes it back. The headliner ends at 12:30 AM ET; the fuller the Garden, the more of the owner's bag is burned when the 24 hours end.",
+  "launchAt": "2026-11-20T19:00:00-05:00",
   "startsAt": "2026-11-20T21:00:00-05:00",
   "endsAt": "2026-11-21T00:30:00-05:00",
   "coin": {
@@ -33,7 +34,7 @@
     "pegUsdPerSeat": 1
   },
   "attendanceProfile": {
-    "_note": "Seats occupied (people in the building), minutes after startsAt. Count starts at 0 at the 9:00 PM launch. Modeled, not measured: replace with the ticketing/scan feed.",
+    "_note": "Seats occupied (people in the building), minutes after launchAt (7:00 PM doors). Count starts at 0 when the coin goes live; show 9:00 PM (min 120) to 12:30 AM (min 330). Modeled, not measured: replace with the ticketing/scan feed.",
     "points": [
       [
         0,
@@ -41,54 +42,70 @@
       ],
       [
         15,
-        4000
+        1200
       ],
       [
         30,
-        9500
+        3000
       ],
       [
         45,
-        14000
+        5500
       ],
       [
         60,
-        17000
+        8500
       ],
       [
         75,
-        18600
-      ],
-      [
-        90,
-        19200
-      ],
-      [
-        205,
-        19200
-      ],
-      [
-        210,
-        18700
-      ],
-      [
-        220,
         11500
       ],
       [
-        230,
+        90,
+        14500
+      ],
+      [
+        105,
+        17000
+      ],
+      [
+        120,
+        18300
+      ],
+      [
+        135,
+        18900
+      ],
+      [
+        150,
+        19200
+      ],
+      [
+        325,
+        19200
+      ],
+      [
+        330,
+        18700
+      ],
+      [
+        340,
+        11500
+      ],
+      [
+        350,
         5000
       ],
       [
-        240,
+        360,
         1800
       ],
       [
-        255,
+        375,
         300
       ],
       [
-        270,
+        390,
         0
       ]
     ]

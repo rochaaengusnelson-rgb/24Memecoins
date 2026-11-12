@@ -11,7 +11,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { OnlinePumpSdk, PUMP_PROGRAM_ID } from "@pump-fun/pump-sdk";
-import { loadEvent, totalCapacity } from "./event.js";
+import { launchTime, loadEvent, totalCapacity } from "./event.js";
 import { burnAmount, fillRate, isStale, lamportsToSol, usdToLamports } from "./math.js";
 import { feedAgeSec, isPubkey, loadFeed, readFeed } from "./oracle/switchboard.js";
 import { MAX_TX_BYTES, buildLaunchIxs, compileUnsigned } from "./pumpfun/launch.js";
@@ -74,13 +74,15 @@ async function main() {
   line(`  venues: ${ev.venues.map((v) => `${v.name} ${fmt(v.seats)}`).join(" + ")} = ${fmt(capacity)} seats`);
   const et = (ms: number) =>
     new Date(ms).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
-  const start = Date.parse(ev.startsAt);
+  const start = Date.parse(launchTime(ev));
+  const show = Date.parse(ev.startsAt);
   const windowEnd = start + ev.rules.windowHours * 3600_000;
   line(`  timeline (ET):`);
-  line(`    ${et(start).padEnd(28)} show starts, coin launches, ${ev.rules.windowHours}h window opens`);
-  if (ev.endsAt) line(`    ${et(Date.parse(ev.endsAt)).padEnd(28)} headliner ends (${((Date.parse(ev.endsAt) - start) / 3600_000).toFixed(1)}h show); attendance count is final`);
+  line(`    ${et(start).padEnd(28)} coin goes live at 0 seats, ${ev.rules.windowHours}h window opens`);
+  if (show !== start) line(`    ${et(show).padEnd(28)} show starts (${((show - start) / 3600_000).toFixed(1)}h after launch)`);
+  if (ev.endsAt) line(`    ${et(Date.parse(ev.endsAt)).padEnd(28)} headliner ends (${((Date.parse(ev.endsAt) - show) / 3600_000).toFixed(1)}h show); crowd leaves`);
   line(`    ${et(windowEnd).padEnd(28)} window closes, settle: burn by final fill`);
-  report.timeline = { launch: new Date(start).toISOString(), showEnds: ev.endsAt ?? null, windowCloses: new Date(windowEnd).toISOString() };
+  report.timeline = { launch: new Date(start).toISOString(), showStarts: ev.startsAt, showEnds: ev.endsAt ?? null, windowCloses: new Date(windowEnd).toISOString() };
 
   // ---- 1. Switchboard SOL/USD ----
   line(`\n[1] Switchboard SOL/USD`);

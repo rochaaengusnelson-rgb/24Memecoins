@@ -7,6 +7,7 @@ export interface ChartInput {
   capacity: number;
   launchMcap: number;
   perSeat: number;
+  showStartMinute: number;
   showEndMinute: number;
   chartMinutes: number;
   rows: Array<{ m: number; seats: number; peg: number }>;
@@ -113,7 +114,7 @@ details summary { cursor: pointer; color: var(--text-secondary); }
   <section class="card" aria-label="Seats in the building over time">
     <p class="panel-title">Seats in the building</p>
     <p class="panel-note">Counted from 0 at launch · capacity ${d.capacity.toLocaleString("en-US")}</p>
-    <div class="chart-wrap"><svg id="seats" viewBox="0 0 1000 240" role="img" aria-label="Seats occupied from launch to 2 AM"></svg></div>
+    <div class="chart-wrap"><svg id="seats" viewBox="0 0 1000 240" role="img" aria-label="Seats occupied from coin launch to after the show"></svg></div>
   </section>
 
   <section class="card" aria-label="Attendance value over time">
@@ -165,8 +166,10 @@ function panel(svg, H, scale, yFmt, key) {
   const x = (m) => M.l + (m / D.chartMinutes) * (W - M.l - M.r);
   const y = (v) => M.t + (1 - v / yMax) * (H - M.t - M.b);
   // show band
-  el("rect", { x: x(0), y: M.t, width: x(D.showEndMinute) - x(0), height: H - M.t - M.b, fill: "var(--band)" }, svg);
-  const showLbl = el("text", { x: x(0), y: M.t - 10, class: "ann" }, svg); showLbl.textContent = "show (9:00 PM – 12:30 AM)";
+  el("rect", { x: x(D.showStartMinute), y: M.t, width: x(D.showEndMinute) - x(D.showStartMinute), height: H - M.t - M.b, fill: "var(--band)" }, svg);
+  el("line", { x1: x(D.showStartMinute), x2: x(D.showStartMinute), y1: M.t - 6, y2: H - M.b, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+  const preLbl = el("text", { x: x(0), y: M.t - 10, class: "ann" }, svg); preLbl.textContent = "coin live · doors · pre-show";
+  const showLbl = el("text", { x: x(D.showStartMinute) + 4, y: M.t - 10, class: "ann" }, svg); showLbl.textContent = "show " + D.labels[D.showStartMinute] + " – " + D.labels[D.showEndMinute];
   el("line", { x1: x(D.showEndMinute), x2: x(D.showEndMinute), y1: M.t - 6, y2: H - M.b, stroke: "var(--axis)", "stroke-width": 1 }, svg);
   const endLbl = el("text", { x: x(D.showEndMinute) + 4, y: M.t - 10, class: "ann" }, svg); endLbl.textContent = "headliner ends · crowd leaves";
   // grid + y ticks
@@ -201,7 +204,7 @@ const pk = el("text", { x: W - M.r + 6, y: P1.y(D.capacity) + 18, class: "ann" }
 for (const [P, svg] of [[P1, seatsSvg], [P2, valueSvg]]) {
   el("circle", { cx: P.x(0), cy: P.y(0), r: 4.5, fill: "var(--series-1)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
 }
-const lz = el("text", { x: P2.x(0) + 14, y: P2.y(0) - 10, class: "ann" }, valueSvg); lz.textContent = "9:00 PM launch: $0 at 0 seats";
+const lz = el("text", { x: P2.x(0) + 14, y: P2.y(0) - 10, class: "ann" }, valueSvg); lz.textContent = D.labels[0] + " coin live: $0 at 0 seats";
 
 // owner sales: drop line from peg to post-sale value, grouped by minute
 const byMinute = {};

@@ -14,8 +14,13 @@ export const EventConfig = z.object({
   artist: z.string().min(1),
   title: z.string().min(1),
   description: z.string().min(1),
-  /** ISO timestamp the broadcast starts; the coin's 24h window starts at launch. */
+  /** ISO timestamp the show starts. */
   startsAt: z.iso.datetime({ offset: true }),
+  /**
+   * ISO timestamp the coin goes live (before the show, e.g. doors open). The attendance count
+   * starts at 0 here and the coin's window runs from here. Defaults to startsAt.
+   */
+  launchAt: z.iso.datetime({ offset: true }).optional(),
   /** ISO timestamp the show ends (headliner off stage). Optional; shown in timelines. */
   endsAt: z.iso.datetime({ offset: true }).optional(),
   coin: z.object({
@@ -65,6 +70,10 @@ export type EventConfig = z.infer<typeof EventConfig>;
 export function loadEvent(path: string): EventConfig {
   const raw = JSON.parse(readFileSync(path, "utf8"));
   return EventConfig.parse(raw);
+}
+
+export function launchTime(ev: Pick<EventConfig, "launchAt" | "startsAt">): string {
+  return ev.launchAt ?? ev.startsAt;
 }
 
 export function totalCapacity(ev: Pick<EventConfig, "venues">): number {

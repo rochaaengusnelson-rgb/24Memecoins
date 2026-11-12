@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { burnAmount, fillRate, isStale, usdToLamports, windowEndsAt, windowOpen } from "../src/math.js";
-import { EventConfig, loadEvent, totalCapacity } from "../src/event.js";
+import { EventConfig, launchTime, loadEvent, totalCapacity } from "../src/event.js";
 
 describe("usdToLamports", () => {
   it("converts $500 at $200/SOL to 2.5 SOL", () => {
@@ -52,5 +52,18 @@ describe("example event", () => {
   it("rejects a bad symbol length", () => {
     const ev = loadEvent("events/example-la-arena-nyc-broadcast.json");
     expect(() => EventConfig.parse({ ...ev, coin: { ...ev.coin, symbol: "WAYTOOLONGSYMBOL" } })).toThrow();
+  });
+});
+
+describe("MSG one-night event", () => {
+  it("goes live before the show with 0 seats counted", () => {
+    const ev = loadEvent("events/msg-nyc-one-night.json");
+    expect(Date.parse(launchTime(ev))).toBeLessThan(Date.parse(ev.startsAt));
+    expect(ev.attendanceProfile!.points[0]).toEqual([0, 0]);
+    expect(totalCapacity(ev)).toBe(19_500);
+  });
+  it("defaults launch to show start when launchAt is absent", () => {
+    const ev = loadEvent("events/example-la-arena-nyc-broadcast.json");
+    expect(launchTime(ev)).toBe(ev.startsAt);
   });
 });

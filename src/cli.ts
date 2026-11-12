@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { loadEvent, totalCapacity, type EventConfig } from "./event.js";
+import { launchTime, loadEvent, totalCapacity, type EventConfig } from "./event.js";
 import { burnAmount, fillRate, lamportsToSol, usdToLamports, windowEndsAt, windowOpen } from "./math.js";
 import { readFeed } from "./oracle/switchboard.js";
 import { uploadMetadata } from "./pumpfun/metadata.js";
@@ -12,7 +12,7 @@ import { loadState, saveState } from "./state.js";
 const USAGE = `eventcoins <command> <event.json> [flags]
 
   quote   <event>              SOL needed for the owner's USD seed + live attendance
-  launch  <event> [--dry-run] [--uri <metadataUri>]
+  launch  <event> [--dry-run] [--uri <metadataUri>] [--early]
                                upload metadata, create the coin on pump.fun, owner buys the seed
   status  <event>              window countdown, live fill rate, owner bag
   settle  <event> [--dry-run]  after the window: read final attendance, burn fill% of owner bag`;
@@ -64,6 +64,10 @@ async function launch(ev: EventConfig, args: string[]) {
   const existing = loadState(ev.id);
   if (existing) throw new Error(`event ${ev.id} already launched: ${pumpUrl(existing.mint)}`);
   const dryRun = flag(args, "--dry-run");
+  const goLive = Date.parse(launchTime(ev));
+  if (!dryRun && Date.now() < goLive - 10 * 60_000 && !flag(args, "--early")) {
+    throw new Error(`coin goes live at ${launchTime(ev)}; refusing to launch more than 10 minutes early (pass --early to override)`);
+  }
   const c = conn();
   const owner = ownerKey();
   const { price, seats, lamports } = await readInputs(c, ev);

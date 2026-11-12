@@ -1,7 +1,7 @@
 {
   "event": "msg-nyc-one-night-2026-11-20",
   "solUsd": 185,
-  "source": "live mainnet (2026-11-12T13:54:14.556Z)",
+  "source": "live mainnet (2026-11-12T13:56:50.774Z)",
   "launchMcap": 6133.824797392147,
   "perSeat": 1,
   "summary": [
@@ -11,11 +11,11 @@
       "scenario": "Owner sells 100% mid-show (Fri 10:45 PM)",
       "costSol": 2.7119027019999997,
       "proceedsSol": 10.040191578,
-      "creatorFeesSol": 0.263348248,
+      "creatorFeesSol": 0.263348276,
       "residualSol": 0,
-      "totalSol": 10.303539826,
-      "roi": 2.799376658462432,
-      "crowdNetSol": -8.501506468,
+      "totalSol": 10.303539854,
+      "roi": 2.7993766687872865,
+      "crowdNetSol": -8.501506525,
       "burnedTokens": "0"
     },
     {
@@ -24,11 +24,11 @@
       "scenario": "Owner sells 100% right before the crowd leaves (Sat 12:25 AM)",
       "costSol": 2.7119027019999997,
       "proceedsSol": 10.040191578,
-      "creatorFeesSol": 0.263348248,
+      "creatorFeesSol": 0.263348276,
       "residualSol": 0,
-      "totalSol": 10.303539826,
-      "roi": 2.799376658462432,
-      "crowdNetSol": -8.501506468,
+      "totalSol": 10.303539854,
+      "roi": 2.7993766687872865,
+      "crowdNetSol": -8.501506525,
       "burnedTokens": "0"
     },
     {
@@ -37,11 +37,11 @@
       "scenario": "Owner sells 50% mid-show, 50% before the crowd leaves",
       "costSol": 2.7119027019999997,
       "proceedsSol": 10.872697224,
-      "creatorFeesSol": 0.268406512,
+      "creatorFeesSol": 0.26840654,
       "residualSol": 0,
-      "totalSol": 11.141103736,
-      "roi": 3.1082239889298213,
-      "crowdNetSol": -9.355088208,
+      "totalSol": 11.141103764,
+      "roi": 3.108223999254676,
+      "crowdNetSol": -9.355088265,
       "burnedTokens": "0"
     },
     {
@@ -50,11 +50,11 @@
       "scenario": "Owner holds; settlement burn at peak fill (baseline rules)",
       "costSol": 2.7119027019999997,
       "proceedsSol": 0,
-      "creatorFeesSol": 0.202344552,
+      "creatorFeesSol": 0.20234458,
       "residualSol": 0.044145397,
-      "totalSol": 0.246489949,
-      "roi": -0.9091081148235088,
-      "crowdNetSol": -0.843102123,
+      "totalSol": 0.246489977,
+      "roi": -0.9091081044986546,
+      "crowdNetSol": -0.84310218,
       "burnedTokens": "86,322,198"
     },
     {
@@ -63,11 +63,11 @@
       "scenario": "Owner holds, no burn; sells at window close (reference)",
       "costSol": 2.7119027019999997,
       "proceedsSol": 2.635969299,
-      "creatorFeesSol": 0.210352561,
+      "creatorFeesSol": 0.210352589,
       "residualSol": 0,
-      "totalSol": 2.84632186,
-      "roi": 0.04956636456789831,
-      "crowdNetSol": -0.843102123,
+      "totalSol": 2.8463218880000003,
+      "roi": 0.04956637489275262,
+      "crowdNetSol": -0.84310218,
       "burnedTokens": "0"
     }
   ]

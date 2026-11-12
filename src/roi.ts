@@ -1,7 +1,7 @@
 /**
  * ROI scenarios for an event coin whose value is pegged to seats occupied.
  *
- * Rule: the coin launches at startsAt with 0 seats counted. Market cap = launch market cap
+ * Rule: the coin goes live at launchAt (before the show) with 0 seats counted. Market cap = launch market cap
  * (fresh pump.fun curve + the owner's seed buy) + rules.pegUsdPerSeat x seats occupied.
  * So the attendance value starts at $0 and moves $1 (default) per person entering or leaving.
  *
@@ -23,7 +23,7 @@ import {
 } from "@pump-fun/pump-sdk";
 import { NATIVE_MINT } from "@solana/spl-token";
 import BN from "bn.js";
-import { loadEvent, totalCapacity, type EventConfig } from "./event.js";
+import { launchTime, loadEvent, totalCapacity, type EventConfig } from "./event.js";
 import { burnAmount, usdToLamports } from "./math.js";
 import { Curve, seatsAt } from "./model/curve.js";
 import { renderChart } from "./report/chart.js";
@@ -32,7 +32,6 @@ const args = process.argv.slice(2);
 const opt = (n: string) => (args.indexOf(n) >= 0 ? args[args.indexOf(n) + 1] : undefined);
 const RENT_SOL = 0.0092; // mint + curve + ATA rent, from the mainnet dry run (2.711916 out - 2.7027 seed)
 const DEC = 1e6;
-const CHART_MINUTES = 300; // per-minute rows kept for the chart (launch -> 2:00 AM for a 9 PM start)
 
 interface Sell {
   minute: number;
@@ -109,7 +108,7 @@ function freshCurve(g: Global, fc: FeeConfig | null) {
   );
 }
 
-function run(ev: EventConfig, g: Global, fc: FeeConfig | null, solUsd: number, sc: Scenario, windowMin: number): Result {
+function run(ev: EventConfig, g: Global, fc: FeeConfig | null, solUsd: number, sc: Scenario, windowMin: number, chartMinutes: number): Result {
   const points = ev.attendanceProfile!.points as Array<[number, number]>;
   const capacity = totalCapacity(ev);
   const supply = Number(g.tokenTotalSupply.toString());
@@ -166,7 +165,7 @@ function run(ev: EventConfig, g: Global, fc: FeeConfig | null, solUsd: number, s
       const absorbed = m < windowMin ? repeg(peg) : 0n;
       sellsOut.push({ ...s, tokens: amt, solNet: t.solNet, mcapPeg: peg, mcapAfter, crowdRepeg: absorbed });
     }
-    if (m <= CHART_MINUTES || m % 15 === 0 || m === windowMin)
+    if (m <= chartMinutes || m % 15 === 0 || m === windowMin)
       rows.push({ minute: m, seats: Math.round(seats), mcapPeg: peg, mcap: mcapOf(curve.price()), ownerTokens, crowdNet: crowdOut - crowdIn });
   }
 
@@ -199,11 +198,15 @@ async function main() {
   const solUsd = Number(opt("--sol-usd") ?? 185);
   const { global: g, feeConfig: fc, source } = await liveParams();
   const capacity = totalCapacity(ev);
-  const start = ev.startsAt;
-  const showMin = ev.endsAt ? Math.round((Date.parse(ev.endsAt) - Date.parse(start)) / 60_000) : 210;
+  const start = launchTime(ev); // minute 0 = coin goes live
+  const minutesFromLaunch = (iso: string) => Math.round((Date.parse(iso) - Date.parse(start)) / 60_000);
+  const showStart = minutesFromLaunch(ev.startsAt);
+  if (showStart < 0) throw new Error("launchAt must not be after startsAt");
+  const showMin = ev.endsAt ? minutesFromLaunch(ev.endsAt) : showStart + 210;
   const windowMin = Math.round(ev.rules.windowHours * 60);
-  const mid = Math.round(showMin / 2);
+  const mid = Math.round((showStart + showMin) / 2);
   const beforeLeave = showMin - 5;
+  const chartMinutes = Math.ceil((showMin + 90) / 60) * 60;
   const points = ev.attendanceProfile.points as Array<[number, number]>;
   const peakSeats = Math.max(...points.map((p) => p[1]));
   const perSeat = ev.rules.pegUsdPerSeat;
@@ -232,7 +235,8 @@ async function main() {
     { id: "D", short: "Hold + burn", name: "Owner holds; settlement burn at peak fill (baseline rules)", sells: [], burn: true },
     { id: "E", short: "Hold, no burn", name: "Owner holds, no burn; sells at window close (reference)", sells: [{ minute: windowMin, fraction: 1, label: "window close" }], burn: false },
   ];
-  const results = scenarios.map((sc) => run(ev, g, fc, solUsd, sc, windowMin));
+  const results = scenarios.map((sc) => run(ev, g, fc, solUsd, sc, windowMin, chartMinutes));
+  const fullFrom = points.find((p) => p[1] === peakSeats)![0];
   const r0 = results[0];
   const launchMcap = r0.rows[0].mcap;
   const peakMcap = launchMcap + perSeat * peakSeats;
@@ -242,13 +246,14 @@ async function main() {
   const w = (s = "") => L.push(s);
   w(`# ROI report: ${ev.title}`);
   w();
-  w(`${ev.artist} · launch ${etClock(start, 0)} ET · headliner ends ${etClock(start, showMin)} ET · ${capacity.toLocaleString()} seats · $${ev.funding.usd} owner seed · ${ev.rules.windowHours}h coin window`);
+  w(`${ev.artist} · coin live ${etClock(start, 0)} ET · show ${etClock(start, showStart)} – ${etClock(start, showMin)} ET · ${capacity.toLocaleString()} seats · $${ev.funding.usd} owner seed · ${ev.rules.windowHours}h coin window`);
   w();
   w(`Generated ${new Date().toISOString()} · SOL/USD **$${solUsd}** (held constant) · pump.fun parameters: ${source}`);
   w();
   w(`## Launch rule: $0 at 0 attendance, +$${perSeat} per seat`);
   w();
-  w(`- The coin launches at **${etClock(start, 0)} ET exactly, with 0 seats counted**. Its **attendance value** (market cap above launch) is **$0**.`);
+  w(`- The coin goes **live at ${etClock(start, 0)} ET, ${showStart} minutes before the ${etClock(start, showStart)} show, with 0 seats counted**. Its **attendance value** (market cap above launch) is **$0**. The ${ev.rules.windowHours}h window runs from launch and closes ${etClock(start, windowMin)}.`);
+  w(`- Pre-show: as doors open and the crowd arrives, value builds before the first note. By showtime ${Math.round(seatsAt(points, showStart)).toLocaleString()} seats are filled (${usd(perSeat * seatsAt(points, showStart), 0)}).`);
   w(`- Each person in the building adds **$${perSeat} of market cap**; each person who leaves takes it back. At the ${peakSeats.toLocaleString()}-seat peak, the attendance value is **${usd(perSeat * peakSeats, 0)}**.`);
   w(`- pump.fun can't list a coin at a literal $0. A fresh curve opens at a **${usd(preSeedMcap, 0)}** market cap, and the owner's $${ev.funding.usd} buy at launch takes it to **${usd(launchMcap, 0)}**. That is the zero line; everything above it is attendance.`);
   w(`- Every minute, the crowd buys or sells on the real curve exactly enough to hold that line. This is the model's assumption; on pump.fun, price is set by whoever trades. Holding the peg live needs a market maker or program trading against the Switchboard attendance feed.`);
@@ -259,7 +264,7 @@ async function main() {
   w();
   w(`| Time (ET) | Seats occupied | Fill | Attendance value | Market cap | vs launch |`);
   w(`|---|---:|---:|---:|---:|---:|`);
-  const marks: Array<[number, string]> = [[0, "launch"], [15, ""], [30, ""], [60, ""], [90, ""], [mid, "mid-show"], [beforeLeave, "before crowd leaves"], [showMin, "headliner ends"], [showMin + 10, ""], [showMin + 20, ""], [showMin + 30, ""], [showMin + 60, ""]];
+  const marks: Array<[number, string]> = [[0, "coin live, doors"], [30, ""], [60, ""], [90, ""], [showStart, "show starts"], [fullFrom, "full"], [mid, "mid-show"], [beforeLeave, "before crowd leaves"], [showMin, "headliner ends"], [showMin + 10, ""], [showMin + 20, ""], [showMin + 30, ""], [showMin + 60, ""]];
   for (const [m, tag] of marks) {
     const s = seatsAt(points, m);
     const mc = launchMcap + perSeat * s;
@@ -306,15 +311,16 @@ async function main() {
   const [A, B, C, D, E] = summary;
   const aSale = results[0].sells[0];
   const cSale = results[2].sells[0];
-  w(`1. **Launching at zero attendance gives the owner the cheapest entry.** The owner buys at the zero line, before anyone is counted, so the full ${usd(perSeat * peakSeats, 0)} of attendance value builds on top of the owner's bag. Market cap peaks at ${pct(peakMcap / launchMcap - 1)} over launch.`);
-  w(`2. **Mid-show (A) and just before the crowd leaves (B) pay the same: ${pct(A.roi)} / ${pct(B.roi)}.** The building is full (${peakSeats.toLocaleString()}) from ${etClock(start, 90)} to ${etClock(start, beforeLeave)}, so both sales hit the same peg. Ten minutes after the headliner ends, the attendance value is down ${pct(1 - seatsAt(points, showMin + 10) / peakSeats).replace("+", "")}.`);
-  w(`3. **Splitting the exit (C) earns more: ${pct(C.roi)}.** Each half knocks the market cap ${pct(cSale.mcapAfter / cSale.mcapPeg - 1)} instead of ${pct(aSale.mcapAfter / aSale.mcapPeg - 1)}. Buyers restore the peg between the two sales, at the crowd's expense (crowd net ${usd(C.crowdNetSol * solUsd)} vs ${usd(A.crowdNetSol * solUsd)}).`);
-  w(`4. **Holding under the burn rule (D): ${pct(D.roi)}.** The burn destroys the bag the attendance built. Holding without a burn (E): ${pct(E.roi)}. Once the venue empties, value returns to the zero line.`);
-  w(`5. **Every owner sale is paid for by the crowd.** In A, buyers spend ${usd(sol(aSale.crowdRepeg) * solUsd)} to undo a ${pct(aSale.mcapAfter / aSale.mcapPeg - 1)} drop, and settlement has nothing left to burn. If owners can sell mid-event, disclose it up front, or lock the owner bag until settlement.`);
+  w(`1. **Going live before doors gives the owner the cheapest entry.** The owner buys at the zero line at ${etClock(start, 0)}, before anyone is counted, so the full ${usd(perSeat * peakSeats, 0)} of attendance value builds on top of the owner's bag. Market cap peaks at ${pct(peakMcap / launchMcap - 1)} over launch.`);
+  w(`2. **Most of the move happens before the show.** The coin is live from ${etClock(start, 0)}; by the ${etClock(start, showStart)} start, ${Math.round(seatsAt(points, showStart)).toLocaleString()} people are in (${pct(seatsAt(points, showStart) / peakSeats).replace("+", "")} of the peak value). During the show the value only moves the last ${usd(perSeat * (peakSeats - seatsAt(points, showStart)), 0)}. Pre-show buyers carry the run-up and post-show sellers the drop.`);
+  w(`3. **Mid-show (A) and just before the crowd leaves (B) pay the same: ${pct(A.roi)} / ${pct(B.roi)}.** The building is full (${peakSeats.toLocaleString()}) from ${etClock(start, fullFrom)} to ${etClock(start, beforeLeave)}, so both sales hit the same peg. Ten minutes after the headliner ends, the attendance value is down ${pct(1 - seatsAt(points, showMin + 10) / peakSeats).replace("+", "")}.`);
+  w(`4. **Splitting the exit (C) earns more: ${pct(C.roi)}.** Each half knocks the market cap ${pct(cSale.mcapAfter / cSale.mcapPeg - 1)} instead of ${pct(aSale.mcapAfter / aSale.mcapPeg - 1)}. Buyers restore the peg between the two sales, at the crowd's expense (crowd net ${usd(C.crowdNetSol * solUsd)} vs ${usd(A.crowdNetSol * solUsd)}).`);
+  w(`5. **Holding under the burn rule (D): ${pct(D.roi)}.** The burn destroys the bag the attendance built. Holding without a burn (E): ${pct(E.roi)}. Once the venue empties, value returns to the zero line.`);
+  w(`6. **Every owner sale is paid for by the crowd.** In A, buyers spend ${usd(sol(aSale.crowdRepeg) * solUsd)} to undo a ${pct(aSale.mcapAfter / aSale.mcapPeg - 1)} drop, and settlement has nothing left to burn. If owners can sell mid-event, disclose it up front, or lock the owner bag until settlement.`);
   w();
   w(`## Assumptions`);
   w();
-  w(`- Attendance is the modeled occupancy profile in \`${path}\` (0 at launch, peak ${peakSeats.toLocaleString()}); it must come from a real Switchboard feed (door scans in and out) before launch.`);
+  w(`- Attendance is the modeled occupancy profile in \`${path}\` (0 when the coin goes live at doors, peak ${peakSeats.toLocaleString()}); it must come from a real Switchboard feed (door scans in and out) before launch.`);
   w(`- SOL/USD stays at $${solUsd} throughout. No other traders, bots or snipers: crowd trades are exactly what holds the peg.`);
   w(`- The settlement burn uses peak occupancy (${peakSeats.toLocaleString()}), because occupancy is 0 by the time the window closes.`);
   w(`- Creator fees are counted on crowd trades only, and claimable by the owner whether or not they sold.`);
@@ -333,15 +339,16 @@ async function main() {
     `${base}-chart.html`,
     renderChart({
       title: ev.title,
-      subtitle: `${ev.artist} · launch ${etClock(start, 0)} ET at 0 seats · +$${perSeat} market cap per seat · SOL $${solUsd}`,
+      subtitle: `${ev.artist} · coin live ${etClock(start, 0)} ET at 0 seats · show ${etClock(start, showStart)} – ${etClock(start, showMin)} · +$${perSeat} market cap per seat · SOL $${solUsd}`,
       startIso: start,
       capacity,
       launchMcap,
       perSeat,
+      showStartMinute: showStart,
       showEndMinute: showMin,
-      chartMinutes: CHART_MINUTES,
-      rows: r0.rows.filter((x) => x.minute <= CHART_MINUTES).map((x) => ({ m: x.minute, seats: x.seats, peg: x.mcapPeg })),
-      sales: results.flatMap((r) => r.sells.filter((s) => s.minute <= CHART_MINUTES).map((s, i, all) => ({ id: r.sc.id, tag: all.length > 1 ? `${r.sc.id}${i + 1}` : r.sc.id, label: `${r.sc.id}: sells ${s.fraction >= 1 && r.sc.sells.length > 1 ? "rest" : `${Math.round(s.fraction * 100)}%`}`, m: s.minute, peg: s.mcapPeg, after: s.mcapAfter, proceedsUsd: sol(s.solNet) * solUsd }))),
+      chartMinutes,
+      rows: r0.rows.filter((x) => x.minute <= chartMinutes).map((x) => ({ m: x.minute, seats: x.seats, peg: x.mcapPeg })),
+      sales: results.flatMap((r) => r.sells.filter((s) => s.minute <= chartMinutes).map((s, i, all) => ({ id: r.sc.id, tag: all.length > 1 ? `${r.sc.id}${i + 1}` : r.sc.id, label: `${r.sc.id}: sells ${s.fraction >= 1 && r.sc.sells.length > 1 ? "rest" : `${Math.round(s.fraction * 100)}%`}`, m: s.minute, peg: s.mcapPeg, after: s.mcapAfter, proceedsUsd: sol(s.solNet) * solUsd }))),
       roi: summary.map((s) => ({ id: s.id, name: s.short, roi: s.roi, totalUsd: s.totalSol * solUsd, crowdUsd: s.crowdNetSol * solUsd })),
     }),
   );
